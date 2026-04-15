@@ -58,6 +58,36 @@ What it does:
 python src/train_central.py --output_dir outputs
 ```
 
+## 2.1) Train 4 ML Models + Hybrid (2-model) Ensembles
+
+This script trains 4 single models:
+
+- Logistic Regression
+- SGD (log-loss)
+- Calibrated Linear SVC
+- Bernoulli Naive Bayes
+
+Then it builds all pairwise 2-model hybrids (average probabilities), and reports:
+
+- Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC
+
+```bash
+python src/train_ml_hybrids.py --output_dir outputs
+```
+
+Optional faster run (for quick smoke checks):
+
+```bash
+python src/train_ml_hybrids.py --output_dir outputs --max_train_samples 60000
+```
+
+Artifacts:
+
+- `outputs/metrics/ml_single_results.csv`
+- `outputs/metrics/ml_hybrid_results.csv`
+- `outputs/metrics/ml_comparison_summary.json`
+- confusion matrices under `outputs/plots/` with prefixes `cm_single_` and `cm_hybrid_`
+
 Artifacts:
 
 - `outputs/metrics/centralized_metrics.json`
