@@ -58,16 +58,15 @@ What it does:
 python src/train_central.py --output_dir outputs
 ```
 
-## 2.1) Train 4 ML Models + Hybrid (2-model) Ensembles
+## 2.1) Train Selected 3 ML Models + Hybrid Ensembles
 
-This script trains 4 single models:
+This script trains the selected single models:
 
 - Logistic Regression
-- SGD (log-loss)
-- Calibrated Linear SVC
-- Bernoulli Naive Bayes
+- Random Forest
+- XGBoost
 
-Then it builds all pairwise 2-model hybrids (average probabilities), and reports:
+Then it builds requested hybrid ensembles and reports:
 
 - Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC
 

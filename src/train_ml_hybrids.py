@@ -1,26 +1,23 @@
 from __future__ import annotations
 
 import argparse
-import itertools
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 
 import numpy as np
 import pandas as pd
 from scipy import sparse
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
-    confusion_matrix,
     f1_score,
     precision_score,
     recall_score,
     roc_auc_score,
 )
-from sklearn.naive_bayes import BernoulliNB
-from sklearn.svm import LinearSVC
+from xgboost import XGBClassifier
 
 from common import save_confusion_matrix, save_json
 
@@ -54,14 +51,20 @@ def maybe_subsample(x, y, n_max: int, seed: int = 42):
     return x[idx], y[idx]
 
 
+def class_weight_ratio(y: np.ndarray) -> float:
+    neg = int((y == 0).sum())
+    pos = int((y == 1).sum())
+    return float(neg / max(pos, 1))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Train multiple single and hybrid ML models")
+    parser = argparse.ArgumentParser(description="Train 3 selected ML models and hybrids for fraud")
     parser.add_argument("--output_dir", type=str, default="outputs")
     parser.add_argument("--threshold", type=float, default=0.5)
     parser.add_argument(
         "--max_train_samples",
         type=int,
-        default=0,
+        default=60000,
         help="Optional cap for faster training (0 = full train set).",
     )
     args = parser.parse_args()
@@ -79,26 +82,47 @@ def main():
     y_test = np.load(processed / "test_y.npy")
 
     x_train, y_train = maybe_subsample(x_train, y_train, n_max=args.max_train_samples, seed=42)
+    scale_pos_weight = class_weight_ratio(y_train)
 
     models = {
-        "logreg": LogisticRegression(
+        "logistic_regression": LogisticRegression(
             max_iter=400,
             solver="saga",
             class_weight="balanced",
             random_state=42,
         ),
-        "sgd_logloss": SGDClassifier(
-            loss="log_loss",
-            class_weight="balanced",
-            max_iter=2000,
-            random_state=42,
-        ),
-        "linear_svc_calibrated": CalibratedClassifierCV(
+        "svm_linear_calibrated": CalibratedClassifierCV(
             estimator=LinearSVC(class_weight="balanced", random_state=42),
             method="sigmoid",
             cv=3,
         ),
-        "bernoulli_nb": BernoulliNB(),
+        "decision_tree": DecisionTreeClassifier(
+            class_weight="balanced",
+            max_depth=12,
+            min_samples_leaf=20,
+            random_state=42,
+        ),
+        "random_forest": RandomForestClassifier(
+            n_estimators=300,
+            max_depth=14,
+            min_samples_leaf=8,
+            class_weight="balanced_subsample",
+            n_jobs=-1,
+            random_state=42,
+        ),
+        "xgboost": XGBClassifier(
+            n_estimators=300,
+            max_depth=6,
+            learning_rate=0.05,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            objective="binary:logistic",
+            eval_metric="logloss",
+            reg_lambda=1.0,
+            scale_pos_weight=scale_pos_weight,
+            random_state=42,
+            n_jobs=-1,
+        ),
     }
 
     single_rows = []
@@ -124,17 +148,25 @@ def main():
         {"threshold": args.threshold, "results": single_df.to_dict(orient="records")},
     )
 
-    print("[INFO] Building pairwise hybrid ensembles...")
+    print("[INFO] Building hybrid ensembles...")
+
     hybrid_rows = []
-    for a, b in itertools.combinations(models.keys(), 2):
-        ens_name = f"{a}+{b}"
-        y_score = 0.5 * pred_store[a] + 0.5 * pred_store[b]
+    # Requested weighted hybrids.
+    weighted_defs = [
+        ("xgboost", "logistic_regression", 0.7, 0.3),
+        ("xgboost", "random_forest", 0.6, 0.4),
+    ]
+    for a, b, wa, wb in weighted_defs:
+        if a not in pred_store or b not in pred_store:
+            continue
+        ens_name = f"{a}+{b}_w{int(wa*100)}_{int(wb*100)}"
+        y_score = wa * pred_store[a] + wb * pred_store[b]
         m = metrics_from_scores(y_test, y_score, threshold=args.threshold)
         row = {"hybrid_model": ens_name}
         row.update(m)
         hybrid_rows.append(row)
         y_pred = (y_score >= args.threshold).astype(int)
-        save_confusion_matrix(y_test, y_pred, plots_dir / f"cm_hybrid_{a}_{b}.png")
+        save_confusion_matrix(y_test, y_pred, plots_dir / f"cm_hybrid_{ens_name}.png")
 
     hybrid_df = pd.DataFrame(hybrid_rows).sort_values("f1", ascending=False)
     hybrid_df.to_csv(metrics_dir / "ml_hybrid_results.csv", index=False)
