@@ -91,17 +91,6 @@ def main():
             class_weight="balanced",
             random_state=42,
         ),
-        "svm_linear_calibrated": CalibratedClassifierCV(
-            estimator=LinearSVC(class_weight="balanced", random_state=42),
-            method="sigmoid",
-            cv=3,
-        ),
-        "decision_tree": DecisionTreeClassifier(
-            class_weight="balanced",
-            max_depth=12,
-            min_samples_leaf=20,
-            random_state=42,
-        ),
         "random_forest": RandomForestClassifier(
             n_estimators=300,
             max_depth=14,
