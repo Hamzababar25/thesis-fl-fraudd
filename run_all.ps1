@@ -7,9 +7,14 @@ param(
     [string]$OutputDir = "outputs",
     [int]$IidRounds = 20,
     [int]$NonIidRounds = 20,
-    [int]$AdaptiveRounds = 20,
+    [int]$SecurityRounds = 20,
     [double]$Lr = 1e-3,
-    [int]$MaxTrainSamples = 60000
+    [int]$MaxTrainSamples = 60000,
+    [int]$NumMalicious = 1,
+    [double]$ClipThreshold = 1.0,
+    [double]$NoiseMultiplier = 0.01,
+    [double]$AttackStrength = 5.0,
+    [string]$MaliciousClients = "w3"
 )
 
 Write-Host "==> [1/8] Creating/using virtual environment"
@@ -42,8 +47,19 @@ Write-Host "==> [6/8] FL FedAvg IID"
 Write-Host "==> [7/8] FL FedAvg Non-IID"
 & $VenvPython src/flwr_server.py --output_dir $OutputDir --partition_mode noniid --rounds $NonIidRounds --lr $Lr
 
-Write-Host "==> [8/8] Adaptive Secure FL (main thesis method)"
-& $VenvPython src/flwr_server_adaptive_secure.py --output_dir $OutputDir --partition_mode bank_noniid --rounds $AdaptiveRounds --lr $Lr --secure_agg
+Write-Host "==> [8/8] Security FL attack evaluation (normal vs attack vs defense)"
+& $VenvPython src/flwr_server_security.py `
+    --output_dir $OutputDir `
+    --partition_mode bank_noniid `
+    --rounds $SecurityRounds `
+    --lr $Lr `
+    --evaluate_attack_scenarios `
+    --attack_mode sign_flip `
+    --attack_strength $AttackStrength `
+    --malicious_clients $MaliciousClients `
+    --num_malicious $NumMalicious `
+    --clip_threshold $ClipThreshold `
+    --noise_multiplier $NoiseMultiplier
 
 Write-Host ""
 Write-Host "Pipeline complete."
@@ -53,5 +69,6 @@ Write-Host "- $OutputDir/metrics/ml_single_results.csv"
 Write-Host "- $OutputDir/metrics/ml_hybrid_results.csv"
 Write-Host "- $OutputDir/metrics/fl_results_iid.csv"
 Write-Host "- $OutputDir/metrics/fl_results_noniid.csv"
-Write-Host "- $OutputDir/metrics/fl_results_adaptive_secure.csv"
+Write-Host "- $OutputDir/metrics/fl_attack_comparison.csv"
+Write-Host "- $OutputDir/metrics/fl_attack_robustness.csv"
 Write-Host "- $OutputDir/metrics/model_comparison_report.md"

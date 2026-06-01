@@ -11,9 +11,14 @@ OUTPUT_DIR="${OUTPUT_DIR:-outputs}"
 
 IID_ROUNDS="${IID_ROUNDS:-20}"
 NONIID_ROUNDS="${NONIID_ROUNDS:-20}"
-ADAPTIVE_ROUNDS="${ADAPTIVE_ROUNDS:-20}"
+SECURITY_ROUNDS="${SECURITY_ROUNDS:-20}"
 LR="${LR:-1e-3}"
 MAX_TRAIN_SAMPLES="${MAX_TRAIN_SAMPLES:-60000}"
+NUM_MALICIOUS="${NUM_MALICIOUS:-1}"
+CLIP_THRESHOLD="${CLIP_THRESHOLD:-1.0}"
+NOISE_MULTIPLIER="${NOISE_MULTIPLIER:-0.01}"
+ATTACK_STRENGTH="${ATTACK_STRENGTH:-5.0}"
+MALICIOUS_CLIENTS="${MALICIOUS_CLIENTS:-w3}"
 
 echo "==> [1/8] Creating/using virtual environment"
 if [[ ! -d "${VENV_DIR}" ]]; then
@@ -41,8 +46,19 @@ python src/flwr_server.py --output_dir "${OUTPUT_DIR}" --partition_mode iid --ro
 echo "==> [7/8] FL FedAvg Non-IID"
 python src/flwr_server.py --output_dir "${OUTPUT_DIR}" --partition_mode noniid --rounds "${NONIID_ROUNDS}" --lr "${LR}"
 
-echo "==> [8/8] Adaptive Secure FL (main thesis method)"
-python src/flwr_server_adaptive_secure.py --output_dir "${OUTPUT_DIR}" --partition_mode bank_noniid --rounds "${ADAPTIVE_ROUNDS}" --lr "${LR}" --secure_agg
+echo "==> [8/8] Security FL attack evaluation (normal vs attack vs defense)"
+python src/flwr_server_security.py \
+  --output_dir "${OUTPUT_DIR}" \
+  --partition_mode bank_noniid \
+  --rounds "${SECURITY_ROUNDS}" \
+  --lr "${LR}" \
+  --evaluate_attack_scenarios \
+  --attack_mode sign_flip \
+  --attack_strength "${ATTACK_STRENGTH}" \
+  --malicious_clients "${MALICIOUS_CLIENTS}" \
+  --num_malicious "${NUM_MALICIOUS}" \
+  --clip_threshold "${CLIP_THRESHOLD}" \
+  --noise_multiplier "${NOISE_MULTIPLIER}"
 
 echo
 echo "Pipeline complete."
@@ -52,5 +68,6 @@ echo "- ${OUTPUT_DIR}/metrics/ml_single_results.csv"
 echo "- ${OUTPUT_DIR}/metrics/ml_hybrid_results.csv"
 echo "- ${OUTPUT_DIR}/metrics/fl_results_iid.csv"
 echo "- ${OUTPUT_DIR}/metrics/fl_results_noniid.csv"
-echo "- ${OUTPUT_DIR}/metrics/fl_results_adaptive_secure.csv"
+echo "- ${OUTPUT_DIR}/metrics/fl_attack_comparison.csv"
+echo "- ${OUTPUT_DIR}/metrics/fl_attack_robustness.csv"
 echo "- ${OUTPUT_DIR}/metrics/model_comparison_report.md"

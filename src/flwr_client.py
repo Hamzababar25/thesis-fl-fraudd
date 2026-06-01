@@ -12,6 +12,7 @@ import torch
 from flwr.common import NDArrays, Scalar
 from torch import nn
 
+from attack_simulation import apply_poisoning_attack, is_malicious_client, parse_malicious_clients
 from common import FraudMLP, build_dataloader, compute_metrics, train_one_epoch
 
 
@@ -26,6 +27,47 @@ def set_weights(model: nn.Module, parameters: NDArrays) -> None:
     params_dict = zip(model.state_dict().keys(), parameters)
     state_dict = {k: torch.tensor(v) for k, v in params_dict}
     model.load_state_dict(state_dict, strict=True)
+
+
+def _stable_seed(cid: str, round_number: int, base_seed: int) -> int:
+    key = f"{cid}:{round_number}:{base_seed}".encode("utf-8")
+    digest = hashlib.sha256(key).hexdigest()[:16]
+    return int(digest, 16) % (2**32)
+
+
+def protect_model_update(
+    initial: NDArrays,
+    updated: NDArrays,
+    cid: str,
+    round_number: int,
+    clip_norm: float,
+    noise_multiplier: float,
+    dp_seed: int,
+) -> Tuple[NDArrays, float, float, float]:
+    """Clip and noise model updates before sending them to server."""
+    deltas = [u - i for i, u in zip(initial, updated)]
+    global_norm = float(np.sqrt(sum(float(np.sum(np.square(d))) for d in deltas)))
+
+    if clip_norm > 0.0:
+        clip_coef = min(1.0, clip_norm / (global_norm + 1e-12))
+    else:
+        clip_coef = 1.0
+    clipped = [d * clip_coef for d in deltas]
+    clipped_norm = float(np.sqrt(sum(float(np.sum(np.square(d))) for d in clipped)))
+
+    noise_scale = 0.0
+    if noise_multiplier > 0.0:
+        rng = np.random.default_rng(_stable_seed(cid, round_number, dp_seed))
+        noise_scale = noise_multiplier * max(clip_norm, 1e-12)
+        noisy = [
+            d + rng.normal(loc=0.0, scale=noise_scale, size=d.shape).astype(d.dtype)
+            for d in clipped
+        ]
+    else:
+        noisy = clipped
+
+    protected = [i + d for i, d in zip(initial, noisy)]
+    return protected, global_norm, clipped_norm, float(noise_scale)
 
 
 @dataclass
@@ -53,13 +95,19 @@ class FraudClient(fl.client.NumPyClient):
         return get_weights(self.model)
 
     def fit(self, parameters: NDArrays, config: Dict[str, Scalar]):
-        set_weights(self.model, parameters)
+        initial_parameters = [np.copy(p) for p in parameters]
+        set_weights(self.model, initial_parameters)
         batch_size = int(config.get("batch_size", 128))
         local_epochs = int(config.get("local_epochs", 1))
         round_number = int(config.get("server_round", 0))
-        secure_agg = bool(config.get("secure_agg", False))
-        mask_scale = float(config.get("mask_scale", 1e-4))
-        mask_seed = int(config.get("mask_seed", 2026))
+        # Support both new and old config keys for backward compatibility.
+        clip_norm = float(config.get("clip_threshold", config.get("clip_norm", 1.0)))
+        noise_multiplier = float(config.get("noise_multiplier", config.get("dp_noise_std", 0.0)))
+        dp_seed = int(config.get("dp_seed", 2026))
+        attack_enabled = bool(config.get("attack_enabled", False))
+        attack_strength = float(config.get("attack_strength", 0.0))
+        attack_mode = str(config.get("attack_mode", "sign_flip"))
+        malicious_clients = parse_malicious_clients(str(config.get("malicious_clients", "")))
 
         loader = build_dataloader(self.data.x_train, self.data.y_train, batch_size=batch_size, shuffle=True)
         neg = (self.data.y_train == 0).sum()
@@ -88,26 +136,45 @@ class FraudClient(fl.client.NumPyClient):
         val_metrics = compute_metrics(y_true, y_score, threshold=0.5)
 
         updated = get_weights(self.model)
-        if secure_agg:
-            updated = apply_deterministic_mask(
-                arrays=updated,
-                cid=self.cid,
-                round_number=round_number,
-                base_seed=mask_seed,
-                scale=mask_scale,
-                sign=1.0,
+        is_malicious = attack_enabled and is_malicious_client(self.cid, malicious_clients)
+        if is_malicious:
+            updated = apply_poisoning_attack(
+                initial=initial_parameters,
+                updated=updated,
+                attack_strength=attack_strength,
+                attack_mode=attack_mode,
             )
+        protected, update_norm, clipped_update_norm, noise_scale_used = protect_model_update(
+            initial=initial_parameters,
+            updated=updated,
+            cid=self.cid,
+            round_number=round_number,
+            clip_norm=clip_norm,
+            noise_multiplier=noise_multiplier,
+            dp_seed=dp_seed,
+        )
 
         metrics = {
             "f1": float(val_metrics["f1"]),
             "recall": float(val_metrics["recall"]),
             "precision": float(val_metrics["precision"]),
-            "fraud_ratio": float((self.data.y_train == 1).mean()),
             "pos_weight": float(pos_weight),
             "train_loss": float(np.mean(train_losses)),
+            # Logged explicitly for security evaluation/traceability.
+            "gradient_norm_before_clipping": float(update_norm),
+            "gradient_norm_after_clipping": float(clipped_update_norm),
+            "clip_threshold": float(clip_norm),
+            "noise_multiplier": float(noise_multiplier),
+            "noise_scale_used": float(noise_scale_used),
+            "dp_seed": float(dp_seed),
+            "is_malicious": float(1.0 if is_malicious else 0.0),
+            "attack_strength": float(attack_strength if is_malicious else 0.0),
+            # Backward-compatible aliases used by existing server logs.
+            "update_norm": float(update_norm),
+            "clipped_update_norm": float(clipped_update_norm),
             "client_idx": float(int(self.cid.replace("w", ""))),
         }
-        return updated, len(self.data.y_train), metrics
+        return protected, len(self.data.y_train), metrics
 
     def evaluate(self, parameters: NDArrays, config: Dict[str, Scalar]):
         set_weights(self.model, parameters)
@@ -182,28 +249,6 @@ def create_bank_style_noniid_partitions(
         rng.shuffle(idx)
         parts.append(idx)
     return parts
-
-
-def _stable_seed(cid: str, round_number: int, base_seed: int) -> int:
-    key = f"{cid}:{round_number}:{base_seed}".encode("utf-8")
-    digest = hashlib.sha256(key).hexdigest()[:16]
-    return int(digest, 16) % (2**32)
-
-
-def apply_deterministic_mask(
-    arrays: NDArrays,
-    cid: str,
-    round_number: int,
-    base_seed: int,
-    scale: float,
-    sign: float = 1.0,
-) -> NDArrays:
-    rng = np.random.default_rng(_stable_seed(cid, round_number, base_seed))
-    masked = []
-    for arr in arrays:
-        noise = rng.normal(loc=0.0, scale=scale, size=arr.shape).astype(arr.dtype)
-        masked.append(arr + sign * noise)
-    return masked
 
 
 def make_client_datasets(

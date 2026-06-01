@@ -8,3 +8,5 @@ output/
 *.zip
 .~lock*
 .ipynb_checkpoints/
+outputs_old_20260531_015325/
+*.npy
