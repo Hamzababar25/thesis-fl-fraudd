@@ -13,7 +13,7 @@ from flwr.common import NDArrays, Scalar
 from torch import nn
 
 from attack_simulation import apply_poisoning_attack, is_malicious_client, parse_malicious_clients
-from common import FraudMLP, build_dataloader, compute_metrics, train_one_epoch
+from common import FraudLogistic, FraudMLP, build_dataloader, compute_metrics, train_one_epoch
 
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
@@ -84,11 +84,16 @@ class FraudClient(fl.client.NumPyClient):
         cid: str,
         data: LocalData,
         input_dim: int,
+        model_name: str = "logistic_regression",
         lr: float = 1e-3,
     ) -> None:
         self.cid = cid
         self.data = data
-        self.model = FraudMLP(input_dim=input_dim).to(DEVICE)
+        self.model_name = model_name
+        if model_name == "logistic_regression":
+            self.model = FraudLogistic(input_dim=input_dim).to(DEVICE)
+        else:
+            self.model = FraudMLP(input_dim=input_dim).to(DEVICE)
         self.lr = lr
 
     def get_parameters(self, config: Dict[str, Scalar]):
@@ -289,6 +294,7 @@ def main():
     parser.add_argument("--output_dir", type=str, default="outputs")
     parser.add_argument("--cid", type=str, default="w1", choices=["w1", "w2", "w3"])
     parser.add_argument("--partition_mode", type=str, default="iid", choices=["iid", "noniid", "bank_noniid"])
+    parser.add_argument("--fl_model", type=str, default="logistic_regression", choices=["logistic_regression", "mlp"])
     parser.add_argument("--lr", type=float, default=1e-3)
     args = parser.parse_args()
 
@@ -297,7 +303,13 @@ def main():
     y_train = np.load(processed / "train_y.npy")
     clients = make_client_datasets(x_train=x_train, y_train=y_train, n_clients=3, mode=args.partition_mode)
     input_dim = x_train.shape[1]
-    client = FraudClient(cid=args.cid, data=clients[args.cid], input_dim=input_dim, lr=args.lr)
+    client = FraudClient(
+        cid=args.cid,
+        data=clients[args.cid],
+        input_dim=input_dim,
+        model_name=args.fl_model,
+        lr=args.lr,
+    )
     fl.client.start_numpy_client(server_address=args.server_address, client=client)
 
 

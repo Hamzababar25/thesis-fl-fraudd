@@ -34,6 +34,13 @@ security-focused federated learning evaluation.
 - `src/common.py`: shared model, metrics, and plotting helpers
 - `outputs/`: generated artifacts
 
+### Best-Model-to-FL Alignment
+
+The security FL pipeline now supports deploying the selected best centralized model in FL:
+- `--fl_model best_from_ml` (default): reads `outputs/metrics/ml_comparison_summary.json`
+- currently mapped to `logistic_regression` (single-layer logistic FL model)
+- optional override: `--fl_model logistic_regression` or `--fl_model mlp`
+
 ## Setup
 
 ```bash
@@ -93,6 +100,7 @@ python3 src/flwr_server_security.py \
   --partition_mode bank_noniid \
   --rounds 20 \
   --lr 1e-3 \
+  --fl_model best_from_ml \
   --aggregation_method multi_krum \
   --num_malicious 1 \
   --clip_threshold 1.0 \
@@ -105,6 +113,7 @@ python3 src/flwr_server_security.py \
 python3 src/flwr_server_security.py \
   --output_dir outputs \
   --partition_mode bank_noniid \
+  --fl_model best_from_ml \
   --compare_strategies \
   --num_malicious 1 \
   --clip_threshold 1.0 \
@@ -126,6 +135,7 @@ This executes:
 python3 src/flwr_server_security.py \
   --output_dir outputs \
   --partition_mode bank_noniid \
+  --fl_model best_from_ml \
   --evaluate_attack_scenarios \
   --attack_mode sign_flip \
   --attack_strength 5.0 \
@@ -138,6 +148,7 @@ python3 src/flwr_server_security.py \
 ## Key Security Configuration Flags
 
 - `--aggregation_method {fedavg,multi_krum}`
+- `--fl_model {best_from_ml,logistic_regression,mlp}`
 - `--num_malicious <int>`
 - `--multi_krum_m <int>` (0 means automatic `n_clients - num_malicious`)
 - `--attack_enabled`

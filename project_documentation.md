@@ -13,6 +13,9 @@ The system keeps the original data and ML workflow intact while shifting FL rese
 - client-side gradient clipping,
 - differential privacy noise injection.
 
+It now follows a strict methodology:
+**ML comparison -> best model selection -> deploy best model in FL -> attack/defense evaluation**.
+
 ### Core Objective
 Evaluate how much robustness improves when moving from standard FedAvg to a defended FL pipeline under malicious client behavior.
 
@@ -104,6 +107,10 @@ Input (521)
 - Batch size: 128
 - Optimizer: Adam
 - Partitioning: `iid`, `noniid`, `bank_noniid` (recommended for realism)
+- FL model selection:
+  - `best_from_ml` (default, reads best model from ML summary)
+  - currently resolved to `logistic_regression`
+  - optional manual override to `mlp`
 
 ---
 
@@ -210,6 +217,7 @@ python3 src/train_ml_hybrids.py --output_dir outputs
 python3 src/flwr_server_security.py \
   --output_dir outputs \
   --partition_mode bank_noniid \
+  --fl_model best_from_ml \
   --compare_strategies \
   --num_malicious 1 \
   --clip_threshold 1.0 \
@@ -221,6 +229,7 @@ python3 src/flwr_server_security.py \
 python3 src/flwr_server_security.py \
   --output_dir outputs \
   --partition_mode bank_noniid \
+  --fl_model best_from_ml \
   --evaluate_attack_scenarios \
   --attack_mode sign_flip \
   --attack_strength 5.0 \

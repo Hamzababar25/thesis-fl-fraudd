@@ -82,6 +82,7 @@ python3 src/train_ml_hybrids.py --output_dir outputs
 python3 src/flwr_server_security.py \
   --output_dir outputs \
   --partition_mode bank_noniid \
+  --fl_model best_from_ml \
   --compare_strategies \
   --num_malicious 1 \
   --clip_threshold 1.0 \
@@ -93,6 +94,7 @@ python3 src/flwr_server_security.py \
 python3 src/flwr_server_security.py \
   --output_dir outputs \
   --partition_mode bank_noniid \
+  --fl_model best_from_ml \
   --evaluate_attack_scenarios \
   --attack_mode sign_flip \
   --attack_strength 5.0 \

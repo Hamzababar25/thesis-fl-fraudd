@@ -14,7 +14,8 @@ param(
     [double]$ClipThreshold = 1.0,
     [double]$NoiseMultiplier = 0.01,
     [double]$AttackStrength = 5.0,
-    [string]$MaliciousClients = "w3"
+    [string]$MaliciousClients = "w3",
+    [string]$FlModel = "best_from_ml"
 )
 
 Write-Host "==> [1/8] Creating/using virtual environment"
@@ -53,6 +54,7 @@ Write-Host "==> [8/8] Security FL attack evaluation (normal vs attack vs defense
     --partition_mode bank_noniid `
     --rounds $SecurityRounds `
     --lr $Lr `
+    --fl_model $FlModel `
     --evaluate_attack_scenarios `
     --attack_mode sign_flip `
     --attack_strength $AttackStrength `

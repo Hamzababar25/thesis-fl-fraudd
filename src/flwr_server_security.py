@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -14,6 +15,7 @@ from sklearn.metrics import log_loss
 from aggregation import fedavg_aggregate, multi_krum_aggregate
 from attack_simulation import build_attack_comparison_rows, build_robustness_rows, save_attack_comparison_plots
 from common import (
+    FraudLogistic,
     FraudMLP,
     build_dataloader,
     compute_metrics,
@@ -26,8 +28,26 @@ from common import (
 from flwr_client import DEVICE, FraudClient, make_client_datasets, set_weights
 
 
+def resolve_fl_model(fl_model: str, output_dir: Path) -> str:
+    if fl_model != "best_from_ml":
+        return fl_model
+    summary_path = output_dir / "metrics" / "ml_comparison_summary.json"
+    if not summary_path.exists():
+        print("[WARN] best_from_ml requested but summary not found; using logistic_regression.")
+        return "logistic_regression"
+    try:
+        payload = json.loads(summary_path.read_text(encoding="utf-8"))
+        best_single = str(payload.get("best_single", {}).get("model", "logistic_regression"))
+        if best_single == "logistic_regression":
+            return "logistic_regression"
+    except Exception:
+        pass
+    print("[WARN] best_from_ml resolved to unsupported FL model; falling back to logistic_regression.")
+    return "logistic_regression"
+
+
 def evaluate_global(
-    model: FraudMLP,
+    model,
     x: np.ndarray,
     y: np.ndarray,
     batch_size: int = 128,
@@ -122,6 +142,7 @@ def run_security_fl(
     x_test: np.ndarray,
     y_test: np.ndarray,
     output_dir: Path,
+    fl_model: str = "logistic_regression",
     rounds: int = 20,
     lr: float = 1e-3,
     partition_mode: str = "bank_noniid",
@@ -148,10 +169,19 @@ def run_security_fl(
 
     def client_fn(cid: str):
         mapped = cids[int(cid)] if cid.isdigit() else cid
-        return FraudClient(cid=mapped, data=client_local[mapped], input_dim=input_dim, lr=lr)
+        return FraudClient(
+            cid=mapped,
+            data=client_local[mapped],
+            input_dim=input_dim,
+            model_name=fl_model,
+            lr=lr,
+        )
 
     round_logs: List[Dict[str, float]] = []
-    global_model = FraudMLP(input_dim=input_dim).to(DEVICE)
+    if fl_model == "logistic_regression":
+        global_model = FraudLogistic(input_dim=input_dim).to(DEVICE)
+    else:
+        global_model = FraudMLP(input_dim=input_dim).to(DEVICE)
 
     def fit_config(server_round: int):
         return {
@@ -226,6 +256,7 @@ def run_security_fl(
             outlier_events.append({"round": int(rec["round"]), "rejected_clients": rejected.split(",")})
 
     strategy_config = {
+        "fl_model": fl_model,
         "aggregation_method": aggregation_method,
         "num_malicious": num_malicious,
         "multi_krum_m": multi_krum_m,
@@ -256,6 +287,13 @@ def main():
     parser.add_argument("--output_dir", type=str, default="outputs")
     parser.add_argument("--rounds", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument(
+        "--fl_model",
+        type=str,
+        default="best_from_ml",
+        choices=["best_from_ml", "logistic_regression", "mlp"],
+        help="Federated model. best_from_ml currently maps to logistic_regression.",
+    )
     parser.add_argument("--partition_mode", type=str, default="bank_noniid", choices=["iid", "noniid", "bank_noniid"])
     parser.add_argument("--clip_threshold", type=float, default=1.0)
     parser.add_argument("--noise_multiplier", type=float, default=0.01)
@@ -294,6 +332,7 @@ def main():
     args = parser.parse_args()
 
     out = Path(args.output_dir)
+    resolved_fl_model = resolve_fl_model(args.fl_model, out)
     processed = out / "processed"
     x_train = np.load(processed / "train_X_dense.npy")
     y_train = np.load(processed / "train_y.npy")
@@ -363,6 +402,7 @@ def main():
             x_test=x_test,
             y_test=y_test,
             output_dir=out,
+            fl_model=resolved_fl_model,
             rounds=args.rounds,
             lr=args.lr,
             partition_mode=args.partition_mode,
@@ -379,6 +419,7 @@ def main():
         )
         row = {
             "scenario": str(item["label"]),
+            "fl_model": resolved_fl_model,
             "aggregation_method": str(item["method"]),
             "attack_enabled": float(1.0 if bool(item["attack_enabled"]) else 0.0),
             "clip_threshold": float(item["clip_threshold"]),

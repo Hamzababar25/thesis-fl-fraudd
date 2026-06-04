@@ -19,6 +19,7 @@ CLIP_THRESHOLD="${CLIP_THRESHOLD:-1.0}"
 NOISE_MULTIPLIER="${NOISE_MULTIPLIER:-0.01}"
 ATTACK_STRENGTH="${ATTACK_STRENGTH:-5.0}"
 MALICIOUS_CLIENTS="${MALICIOUS_CLIENTS:-w3}"
+FL_MODEL="${FL_MODEL:-best_from_ml}"
 
 echo "==> [1/8] Creating/using virtual environment"
 if [[ ! -d "${VENV_DIR}" ]]; then
@@ -52,6 +53,7 @@ python src/flwr_server_security.py \
   --partition_mode bank_noniid \
   --rounds "${SECURITY_ROUNDS}" \
   --lr "${LR}" \
+  --fl_model "${FL_MODEL}" \
   --evaluate_attack_scenarios \
   --attack_mode sign_flip \
   --attack_strength "${ATTACK_STRENGTH}" \
