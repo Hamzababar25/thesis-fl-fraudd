@@ -1,204 +1,266 @@
-# Project Handoff for Documentation (Claude Input)
+# Project Handoff for Claude — FL Fraud Detection Security
 
-This file is a complete handoff summary of the current codebase, objectives, implementation choices, commands, and latest results.
+**Last updated:** June 2026 — after full 7-scenario pipeline run
+
+---
 
 ## 1) Project Identity
 
-- Project: Federated Fraud Detection Security Evaluation
-- Stack: Flower (simulation), PyTorch, scikit-learn
-- Dataset: `data/Bank_Transaction_Fraud_Detection.xlsx`
-- Target column: `Is_Fraud` (binary, imbalanced)
-- Primary objective: Security/privacy robustness in FL (not pure accuracy optimization)
+- **Project:** Federated Learning Fraud Detection — Security Evaluation
+- **Stack:** Flower (simulation), PyTorch, scikit-learn, XGBoost
+- **Dataset:** `data/Bank_Transaction_Fraud_Detection.xlsx`
+- **Target column:** `Is_Fraud` (binary, imbalanced ~5% fraud)
+- **Primary objective:** Security/privacy robustness in FL — NOT pure accuracy optimization
+- **GitHub:** https://github.com/Hamzababar25/thesis-fl-fraudd
+- **Python env:** `.venv/` (activate with `source .venv/bin/activate`)
 
-## 2) Current Thesis Methodology
+---
 
-The code now follows this methodological story:
+## 2) IMPORTANT — Dataset Limitation (Read This First)
 
-1. Preprocess dataset and engineer features
-2. Centralized ML comparison (LR, RF, XGBoost)
-3. Best model selection
-4. Deploy selected best model in FL
-5. Run attack simulation (poisoning)
-6. Apply defenses (Multi-Krum + clipping + DP)
-7. Evaluate normal vs attacked vs defended scenarios
+This dataset has **near-zero feature correlation with fraud labels** (ROC-AUC ≈ 0.50 across all models). This is a known property of this synthetic Kaggle dataset — NOT a code bug or pipeline flaw.
 
-## 3) Best-Model-to-FL Alignment (Important)
+- Absolute F1 is ~9.6% for all models
+- The thesis does NOT claim high fraud detection accuracy
+- The thesis claims: **attack degrades performance, defense recovers it** — this IS proven
 
-- Implemented in `src/flwr_server_security.py`
-- New flag: `--fl_model {best_from_ml, logistic_regression, mlp}`
-- Default is `best_from_ml`
-- `best_from_ml` reads `outputs/metrics/ml_comparison_summary.json`
-- Current supported mapping:
-  - if best single is `logistic_regression` -> FL model is logistic regression (`FraudLogistic`)
-  - otherwise fallback warning -> `logistic_regression`
+Do NOT try to "fix" accuracy by changing the model. The signal is in the **relative change** between normal FL, attack, and defense scenarios.
 
-So the current thesis pipeline is aligned with:
-"Best ML model select karo aur usi model ko FL mein deploy karo"
+---
 
-## 4) Security Implementation Summary
+## 3) Thesis Methodology (9-Step Pipeline)
 
-### Attack (implemented)
-- Type: model/update poisoning
-- Modes:
-  - `sign_flip` (default)
-  - `scale`
-- Config:
-  - `--attack_mode`
-  - `--attack_strength`
-  - `--malicious_clients`
-
-### Attacks not yet implemented (important)
-- Gradient reconstruction: not implemented in current codebase
-- Model inversion: not implemented in current codebase
-- Treat both as future extensions unless dedicated implementation/results are added
-
-### Defenses (implemented)
-- Client-side gradient clipping (`--clip_threshold`)
-- Client-side DP Gaussian noise (`--noise_multiplier`)
-- Server-side robust aggregation:
-  - `fedavg`
-  - `multi_krum`
-
-### Robustness logging
-- Per-round selected/rejected clients
-- Aggregation scores
-- Malicious flags
-- Gradient norm before/after clipping
-- Noise scale used
-
-## 5) Code Structure (Relevant Files)
-
-- `src/preprocess.py` -> preprocessing + split + transform artifacts
-- `src/train_central.py` -> centralized baseline
-- `src/train_ml_hybrids.py` -> LR/RF/XGB + hybrid comparison + summary json
-- `src/common.py` -> shared model/utilities (includes `FraudMLP` and `FraudLogistic`)
-- `src/flwr_client.py` -> FL client, clipping/DP, poisoning behavior
-- `src/aggregation.py` -> FedAvg + Multi-Krum implementations
-- `src/attack_simulation.py` -> attack helpers, comparison/robustness plotting
-- `src/flwr_server_security.py` -> main security FL orchestration
-- `src/flwr_server_adaptive_secure.py` -> compatibility wrapper only
-
-## 6) Run Commands (Ubuntu/Linux)
-
-```bash
-cd "/home/hamza-babar/Documents/thesis-fl-fraud"
-source .venv/bin/activate
-
-python3 src/preprocess.py --data_path data/Bank_Transaction_Fraud_Detection.xlsx --output_dir outputs
-python3 src/train_central.py --output_dir outputs
-python3 src/train_ml_hybrids.py --output_dir outputs
-
-python3 src/flwr_server_security.py \
-  --output_dir outputs \
-  --partition_mode bank_noniid \
-  --fl_model best_from_ml \
-  --evaluate_attack_scenarios \
-  --attack_mode sign_flip \
-  --attack_strength 5.0 \
-  --malicious_clients w3 \
-  --num_malicious 1 \
-  --clip_threshold 1.0 \
-  --noise_multiplier 0.01 \
-  --rounds 20
+```
+preprocess → centralized baseline → ML comparison (LR/RF/XGB) →
+→ FL normal → FL sign_flip attack → FL sign_flip defense →
+→ FL scale attack → FL scale defense →
+→ FL label_flip attack → FL label_flip defense →
+→ generate combined outputs
 ```
 
-## 7) Latest Key Metrics (From Current Files)
+Full run command:
+```bash
+bash run_all.sh
+```
 
-Source: `outputs/metrics/fl_attack_comparison.csv`
+Or step by step:
+```bash
+source .venv/bin/activate
+python src/preprocess.py --data_path data/Bank_Transaction_Fraud_Detection.xlsx --output_dir outputs
+python src/train_central.py --output_dir outputs
+python src/train_ml_hybrids.py --output_dir outputs --max_train_samples 60000
+python src/flwr_server_security.py \
+  --output_dir outputs --partition_mode bank_noniid \
+  --fl_model best_from_ml --evaluate_attack_scenarios \
+  --attack_strength 5.0 --malicious_clients w3 \
+  --num_malicious 1 --clip_threshold 1.0 --noise_multiplier 0.01 --rounds 20
+python src/generate_combined_outputs.py --output_dir outputs
+```
 
-### Scenario 1: Normal FL
-- scenario: `normal_fl`
-- fl_model: `logistic_regression`
-- aggregation: `fedavg`
-- attack_enabled: 0
-- clip/noise: 0.0 / 0.0
-- loss: 0.6877248563857594
-- f1: 0.0906992845603508
-- recall: 0.5194976867151355
-- precision: 0.049687085150768064
-- roc_auc: 0.49887784066158725
-- pr_auc: 0.05024755384913769
+---
 
-### Scenario 2: FL Under Attack (No Defense)
-- scenario: `fl_under_attack`
-- fl_model: `logistic_regression`
-- aggregation: `fedavg`
-- attack: sign_flip, strength 5.0, malicious client w3
-- clip/noise: 0.0 / 0.0
-- loss: 0.5624623635574786
-- f1: 0.08134141990724224
-- recall: 0.15069398545935228
-- precision: 0.05570486195944295
-- roc_auc: 0.49628073296313013
-- pr_auc: 0.050953478032754775
+## 4) Code Structure
 
-### Scenario 3: FL With Defense
-- scenario: `fl_with_defense`
-- fl_model: `logistic_regression`
-- aggregation: `multi_krum`
-- attack: sign_flip, strength 5.0, malicious client w3
-- defense: clipping 1.0 + noise 0.01
-- loss: 0.6882036605015526
-- f1: 0.09027210089921757
-- recall: 0.5109054857898215
-- precision: 0.04951002369820022
-- roc_auc: 0.5013021094651283
-- pr_auc: 0.04995511515767746
+| File | Purpose |
+|------|---------|
+| `src/preprocess.py` | Data cleaning, feature engineering, train/val/test split, save .npz + .npy |
+| `src/common.py` | Shared: FraudMLP, FraudLogistic, compute_metrics, **find_best_threshold** |
+| `src/train_central.py` | Centralized LR baseline — uses val-set threshold optimization |
+| `src/train_ml_hybrids.py` | LR + RF + XGBoost + 2 hybrids — val-set threshold per model |
+| `src/aggregation.py` | FedAvg + Multi-Krum implementations |
+| `src/attack_simulation.py` | apply_poisoning_attack, **apply_label_flipping_to_data**, plots |
+| `src/flwr_client.py` | FL client — label_flip data poisoning + sign_flip/scale model poisoning |
+| `src/flwr_server_security.py` | Main security FL — 7-scenario evaluation, val-based threshold |
+| `src/generate_combined_outputs.py` | Reads all per-scenario CSVs → clean combined files in outputs/analysis/ |
+| `run_all.sh` | Full 9-step pipeline script |
 
-## 8) Robustness Evidence
+---
 
-Source: `outputs/metrics/fl_attack_robustness.csv`
+## 5) Attack Implementation
 
-- `normal_fl`: rounds_with_rejection = 0/20
-- `fl_under_attack`: rounds_with_rejection = 0/20
-- `fl_with_defense`: rounds_with_rejection = 20/20, avg_rejected_clients = 1.0
+### Three attack types (all implemented):
 
-Source: `outputs/metrics/fl_aggregation_summary_fl_with_defense.json`
-- malicious client `w3` is rejected in all rounds (1..20)
+**1. Sign-Flip (model poisoning)**
+- Where: `src/attack_simulation.py → apply_poisoning_attack(attack_mode="sign_flip")`
+- How: After local training, flip update direction (delta × -strength)
+- Triggered in: `src/flwr_client.py → fit()` if malicious and attack_mode != "label_flip"
 
-## 9) Centralized/ML Context
+**2. Scale (model poisoning)**
+- Where: `src/attack_simulation.py → apply_poisoning_attack(attack_mode="scale")`
+- How: After local training, amplify update (delta × +strength)
+- Same trigger as sign_flip
 
-### Centralized
-Source: `outputs/metrics/centralized_metrics.json`
-- f1: 0.09245187436676798
-- recall: 0.48248512888301387
-- precision: 0.05112402829329785
-- roc_auc: 0.5002735098077343
-- pr_auc: 0.05063611245584996
+**3. Label-Flip (data poisoning) ← NEW**
+- Where: `src/attack_simulation.py → apply_label_flipping_to_data()`
+- How: BEFORE local training, flip all fraud labels (1→0) in training data
+- Triggered in: `src/flwr_client.py → fit()` if malicious and attack_mode == "label_flip"
+- Key insight: model updates look different but are harder to detect (data-level, not model-level)
 
-### Best-model summary
-Source: `outputs/metrics/ml_comparison_summary.json`
-- best_single.model: `logistic_regression`
-- best_single.f1: 0.09127034995513396
-- train_samples_used: 60000
+### Attack config:
+- Malicious client: `w3` (1 of 3 clients)
+- Attack strength: `5.0`
+- `--attack_mode` choices: `sign_flip`, `scale`, `label_flip`
 
-## 10) Output Files to Use in Documentation
+---
 
-Primary:
-- `outputs/metrics/fl_attack_comparison.csv`
-- `outputs/metrics/fl_attack_robustness.csv`
-- `outputs/metrics/fl_aggregation_summary_fl_with_defense.json`
+## 6) Defense Implementation
 
-Supporting:
-- `outputs/metrics/centralized_metrics.json`
-- `outputs/metrics/ml_comparison_summary.json`
+| Defense | Where | Config |
+|---------|-------|--------|
+| Gradient clipping | `flwr_client.py → protect_model_update()` | `--clip_threshold 1.0` |
+| DP Gaussian noise | `flwr_client.py → protect_model_update()` | `--noise_multiplier 0.01` |
+| Multi-Krum aggregation | `flwr_server_security.py → SecurityRobustFedAvg` | `--aggregation_method multi_krum` |
 
-Plots:
-- `outputs/plots/fl_attack_evaluation_quality_metrics.png`
-- `outputs/plots/fl_attack_evaluation_aggregation_robustness.png`
+Defense is applied together (Multi-Krum + clipping + DP) in defended scenarios.
 
-## 11) Important Caveats / Claim Boundaries
+---
 
-- Evaluated attack family: poisoning (update-level sign_flip/scale), not all possible attacks.
-- Do not claim universal security.
-- Claim should be: robust and modular framework, validated against poisoning under a defined threat model.
+## 7) Threshold Optimization (NEW)
 
-## 12) Suggested Documentation Narrative
+**Function:** `src/common.py → find_best_threshold(y_true, y_score)`
+- Searches threshold 0.05–0.95 in steps of 0.01
+- Maximizes F1-score on **validation set only** (no data leakage)
+- Applied in: train_central.py, train_ml_hybrids.py, flwr_server_security.py
 
-1. Define privacy/security motivation in FL fraud detection.
-2. Describe best-model selection and FL deployment alignment.
-3. Describe poisoning threat model and sign_flip attack.
-4. Describe layered defenses (clipping + DP + Multi-Krum).
-5. Present 3-scenario comparison and robustness evidence.
-6. Discuss limitations and extensibility to additional attacks.
+Best thresholds found (typical):
+- Normal FL: 0.24, Sign-flip attack: 0.05, Defended: 0.16
+- ML models: LR=0.25, RF=0.42, XGBoost=0.15
 
+---
+
+## 8) FL Scenario Configuration (evaluate_attack_scenarios)
+
+When `--evaluate_attack_scenarios` is passed, 7 scenarios run automatically:
+
+| Label | Method | Attack | Defense |
+|-------|--------|--------|---------|
+| `normal_fl` | fedavg | None | None |
+| `sign_flip_no_defense` | fedavg | sign_flip | None |
+| `sign_flip_defended` | multi_krum | sign_flip | clip+DP |
+| `scale_no_defense` | fedavg | scale | None |
+| `scale_defended` | multi_krum | scale | clip+DP |
+| `label_flip_no_defense` | fedavg | label_flip | None |
+| `label_flip_defended` | multi_krum | label_flip | clip+DP |
+
+---
+
+## 9) Latest Key Results
+
+### ML Models (val-set threshold optimized)
+
+| Model | Category | F1 | Recall | ROC-AUC | Threshold |
+|-------|----------|-----|--------|---------|-----------|
+| XGB+RF (60/40) | Hybrid | 9.64% | 99.27% | 0.5029 | 0.25 |
+| Random Forest | Single | 9.62% | 96.36% | 0.5072 | 0.42 |
+| Logistic Regression | Single | 9.60% | 99.87% | 0.5032 | 0.25 |
+| XGBoost | Single | 9.59% | 99.07% | 0.5027 | 0.15 |
+| LR Centralized | Baseline | 9.26% | 57.24% | 0.5003 | 0.49 |
+
+**Best single model: Random Forest** (F1=9.62%, ROC-AUC=0.5072)
+**FL deployment: Logistic Regression** (tree-based models incompatible with FedAvg)
+
+### FL Scenarios (20 rounds, bank_noniid partition)
+
+| Scenario | F1 | Recall | ROC-AUC | Loss |
+|----------|-----|--------|---------|------|
+| normal_fl | 9.61% | 98.81% | 0.5004 | 0.6882 |
+| sign_flip_no_defense | 8.80% | **35.10%** | 0.4953 | 0.5345 |
+| sign_flip_defended | 9.62% | 99.34% | 0.5023 | 0.6901 |
+| scale_no_defense | 9.61% | 97.75% | 0.4998 | 0.6590 |
+| scale_defended | 9.64% | **99.41%** | 0.5008 | 0.6935 |
+| label_flip_no_defense | 9.63% | 96.76% | 0.5009 | 0.5110 |
+| label_flip_defended | 9.65% | 98.41% | 0.5011 | 0.5399 |
+
+### Round-wise (F1 every 5 rounds)
+
+| Round | normal_fl | sign_flip_atk | sign_flip_def | label_flip_atk | label_flip_def |
+|-------|-----------|--------------|--------------|----------------|----------------|
+| 0 | 0.0901 | 0.0901 | 0.0901 | 0.0901 | 0.0901 |
+| 5 | 0.0893 | 0.0842 | 0.0923 | **0.0064** | 0.0844 |
+| 10 | 0.0910 | 0.0829 | 0.0917 | 0.0384 | 0.0836 |
+| 15 | 0.0907 | 0.0798 | 0.0915 | 0.0641 | 0.0351 |
+| 20 | 0.0920 | **0.0787** | 0.0932 | 0.0679 | 0.0554 |
+
+### Defense Evidence
+- Sign-flip defended: w3 rejected in **20/20 rounds**
+- Scale defended: w3 rejected in **20/20 rounds**
+- Label-flip defended: partial recovery only (data-level attack harder to detect)
+
+---
+
+## 10) Output Files (what to use)
+
+### Thesis-ready combined files → `outputs/analysis/`
+| File | Use for |
+|------|---------|
+| `combined_ml_results.csv` | ML model comparison table |
+| `combined_fl_final.csv` | FL 7-scenario final metrics |
+| `combined_fl_roundwise.csv` | Round-wise table (every 5 rounds) |
+| `combined_client_security.csv` | Client norms + rejection logs |
+| `master_summary.json` | All key numbers in one JSON |
+| `thesis_table_ml.txt` | Copy-paste ready ML table |
+| `thesis_table_fl.txt` | Copy-paste ready FL table |
+| `thesis_table_roundwise.txt` | Copy-paste ready round-wise table |
+| `report.html` | Full interactive browser report (share with anyone) |
+
+### Raw per-scenario files → `outputs/metrics/`
+- `fl_attack_comparison.csv` — all 7 scenarios in one CSV
+- `fl_attack_robustness.csv` — rejection evidence
+- `fl_all_scenarios_roundwise.csv` — full round-wise (all 21 rounds × 43 cols)
+- `ml_single_results.csv`, `ml_hybrid_results.csv` — individual model results
+
+### Plots → `outputs/plots/`
+- `fl_attack_evaluation_quality_metrics.png` — bar chart comparison
+- `fl_attack_evaluation_aggregation_robustness.png` — rejection evidence
+- `fl_confusion_matrix_*.png`, `fl_roc_curve_*.png`, `fl_pr_curve_*.png` — per scenario
+
+---
+
+## 11) Processed Data Files → `outputs/processed/`
+
+| File | Used by |
+|------|---------|
+| `train_X.npz`, `val_X.npz`, `test_X.npz` | Sparse (sklearn models) |
+| `train_X_dense.npy`, `val_X_dense.npy`, `test_X_dense.npy` | Dense (PyTorch FL models) |
+| `train_y.npy`, `val_y.npy`, `test_y.npy` | Labels for all splits |
+| `preprocessor.joblib` | For inference on new data |
+| `manifest.json` | Feature names, column info, fraud ratios |
+
+---
+
+## 12) Claim Boundaries (Important for Thesis)
+
+**Proven claims:**
+- FL framework correctly detects model poisoning (sign_flip, scale) via Multi-Krum
+- Defense (Multi-Krum + clipping + DP) recovers performance after model poisoning
+- Malicious client w3 rejected in 20/20 rounds under sign_flip and scale defense
+- Label-flip (data poisoning) is a distinct threat class harder to defend against
+
+**Do NOT claim:**
+- High absolute fraud detection accuracy (dataset limitation)
+- Protection against all possible attacks
+- Universal security guarantee
+
+**Suggested thesis claim:**
+> "We propose and evaluate a modular FL security framework for fraud detection that demonstrates measurable resilience against model poisoning attacks (sign-flip, scale) through Multi-Krum aggregation combined with gradient clipping and differential privacy. A novel label-flip data poisoning attack is introduced, revealing limitations of gradient-level defenses against data-level threats."
+
+---
+
+## 13) Future Work (already identified)
+
+1. **More clients (5–10):** Currently 3 clients, thesis argument for distributed banking
+2. **SMOTE:** Handle class imbalance in training data
+3. **Better dataset:** Real fraud dataset with informative features
+4. **Label-flip defense:** Dedicated data-level defense (e.g., robust loss functions, data auditing)
+5. **Gradient reconstruction / model inversion:** Not implemented, future extensions
+
+---
+
+## 14) Known Issues / Gotchas
+
+- `[WARN] best_from_ml resolved to unsupported FL model; falling back to logistic_regression` — this is expected since best ML model (Random Forest) can't be used in FL. Normal behavior.
+- Flower deprecation warnings about `client_fn` signature and `NumpyClient` — cosmetic only, do not affect results
+- `outputs/` is in `.gitignore` EXCEPT `outputs/analysis/` which is tracked
+- Data files (`.xlsx`, `.npy`) are gitignored — not in repo
+
+---
