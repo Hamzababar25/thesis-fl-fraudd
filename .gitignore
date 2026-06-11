@@ -9,6 +9,10 @@ outputs/analysis/*
 !outputs/analysis/*.json
 !outputs/analysis/*.txt
 !outputs/analysis/*.html
+!outputs/sir_report
+outputs/sir_report/*
+!outputs/sir_report/*.csv
+!outputs/sir_report/*.txt
 output/
 *.xlsx
 *.zip

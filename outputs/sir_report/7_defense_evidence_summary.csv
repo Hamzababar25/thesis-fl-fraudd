@@ -1,0 +1,4 @@
+scenario,total_rounds,rounds_malicious_client_rejected,rejection_rate_%,verdict
+Sign Flip Defended,20,20,100.0,DEFENSE ACTIVE — Client Blocked
+Scale Defended,20,20,100.0,DEFENSE ACTIVE — Client Blocked
+Label Flip Defended,20,20,100.0,DEFENSE ACTIVE — Client Blocked

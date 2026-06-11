@@ -1,0 +1,7 @@
+rank,model_name,category,f1_score_%,recall_%,precision_%,roc_auc,threshold_used,can_use_in_FL
+1,xgboost+random_forest_w60_40,Hybrid Ensemble,9.64,99.27,5.07,0.5029,0.25,NO (tree-based)
+2,Random Forest,Single ML Model,9.62,96.36,5.07,0.5072,0.42,NO (tree-based)
+3,xgboost+logistic_regression_w70_30,Hybrid Ensemble,9.61,99.67,5.05,0.503,0.19,NO (tree-based)
+4,Logistic Regression,Single ML Model,9.6,99.87,5.04,0.5032,0.25,YES
+5,Xgboost,Single ML Model,9.59,99.07,5.04,0.5027,0.15,NO (tree-based)
+6,Logistic Regression (Centralized),Centralized Baseline,9.26,57.24,5.04,0.5003,0.49,YES
