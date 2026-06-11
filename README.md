@@ -16,6 +16,8 @@ security-focused federated learning evaluation.
   - gradient clipping,
   - differential privacy Gaussian noise.
 - Poisoning attack simulation with configurable malicious clients and attack strength.
+- Current implemented/evaluated attack family: update poisoning (`sign_flip`, `scale`).
+- Gradient reconstruction and model inversion are not implemented in this repository yet; keep them as future-work extensions.
 - Scenario-based evaluation:
   - normal FL,
   - FL under attack,

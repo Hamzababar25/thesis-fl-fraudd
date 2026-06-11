@@ -47,7 +47,7 @@ python src/flwr_server.py --output_dir "${OUTPUT_DIR}" --partition_mode iid --ro
 echo "==> [7/8] FL FedAvg Non-IID"
 python src/flwr_server.py --output_dir "${OUTPUT_DIR}" --partition_mode noniid --rounds "${NONIID_ROUNDS}" --lr "${LR}"
 
-echo "==> [8/8] Security FL attack evaluation (normal vs attack vs defense)"
+echo "==> [8/9] Security FL: 7-scenario attack evaluation (sign_flip + scale + label_flip)"
 python src/flwr_server_security.py \
   --output_dir "${OUTPUT_DIR}" \
   --partition_mode bank_noniid \
@@ -55,21 +55,23 @@ python src/flwr_server_security.py \
   --lr "${LR}" \
   --fl_model "${FL_MODEL}" \
   --evaluate_attack_scenarios \
-  --attack_mode sign_flip \
   --attack_strength "${ATTACK_STRENGTH}" \
   --malicious_clients "${MALICIOUS_CLIENTS}" \
   --num_malicious "${NUM_MALICIOUS}" \
   --clip_threshold "${CLIP_THRESHOLD}" \
   --noise_multiplier "${NOISE_MULTIPLIER}"
 
+echo "==> [9/9] Generate combined clean output files"
+python src/generate_combined_outputs.py --output_dir "${OUTPUT_DIR}"
+
 echo
 echo "Pipeline complete."
-echo "Key outputs:"
-echo "- ${OUTPUT_DIR}/metrics/centralized_results.csv"
-echo "- ${OUTPUT_DIR}/metrics/ml_single_results.csv"
-echo "- ${OUTPUT_DIR}/metrics/ml_hybrid_results.csv"
-echo "- ${OUTPUT_DIR}/metrics/fl_results_iid.csv"
-echo "- ${OUTPUT_DIR}/metrics/fl_results_noniid.csv"
-echo "- ${OUTPUT_DIR}/metrics/fl_attack_comparison.csv"
-echo "- ${OUTPUT_DIR}/metrics/fl_attack_robustness.csv"
-echo "- ${OUTPUT_DIR}/metrics/model_comparison_report.md"
+echo "Key combined outputs (thesis-ready):"
+echo "- ${OUTPUT_DIR}/analysis/combined_ml_results.csv"
+echo "- ${OUTPUT_DIR}/analysis/combined_fl_final.csv"
+echo "- ${OUTPUT_DIR}/analysis/combined_fl_roundwise.csv"
+echo "- ${OUTPUT_DIR}/analysis/combined_client_security.csv"
+echo "- ${OUTPUT_DIR}/analysis/master_summary.json"
+echo "- ${OUTPUT_DIR}/analysis/thesis_table_ml.txt"
+echo "- ${OUTPUT_DIR}/analysis/thesis_table_fl.txt"
+echo "- ${OUTPUT_DIR}/analysis/thesis_table_roundwise.txt"

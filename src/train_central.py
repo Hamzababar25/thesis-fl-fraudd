@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 
 from common import (
     compute_metrics,
+    find_best_threshold,
     report_text,
     save_confusion_matrix,
     save_json,
@@ -33,6 +34,8 @@ def main():
 
     x_train = sparse.load_npz(processed / "train_X.npz")
     y_train = np.load(processed / "train_y.npy")
+    x_val = sparse.load_npz(processed / "val_X.npz")
+    y_val = np.load(processed / "val_y.npy")
     x_test = sparse.load_npz(processed / "test_X.npz")
     y_test = np.load(processed / "test_y.npy")
 
@@ -45,9 +48,15 @@ def main():
     )
     clf.fit(x_train, y_train)
 
+    # Find best threshold on validation set (avoids data leakage)
+    y_score_val = clf.predict_proba(x_val)[:, 1]
+    best_threshold = find_best_threshold(y_val, y_score_val)
+    print(f"[INFO] Best threshold (val F1-optimized): {best_threshold:.4f}")
+
     y_score = clf.predict_proba(x_test)[:, 1]
-    y_pred = (y_score >= 0.5).astype(int)
-    metrics = compute_metrics(y_test, y_score, threshold=0.5)
+    y_pred = (y_score >= best_threshold).astype(int)
+    metrics = compute_metrics(y_test, y_score, threshold=best_threshold)
+    metrics["threshold"] = best_threshold
     cls_report = report_text(y_test, y_pred)
 
     save_json(metrics_dir / "centralized_metrics.json", metrics)

@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import (
+    accuracy_score,
     average_precision_score,
     classification_report,
     confusion_matrix,
@@ -22,6 +23,8 @@ from sklearn.metrics import (
     roc_auc_score,
     roc_curve,
 )
+
+
 from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
@@ -124,9 +127,23 @@ def predict_scores(model: nn.Module, loader: DataLoader, device: str) -> Tuple[n
     return np.concatenate(ys), np.concatenate(probs)
 
 
+def find_best_threshold(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """Find threshold maximizing F1-score on the given set (use validation set only)."""
+    best_thresh = 0.5
+    best_f1 = 0.0
+    for t in np.arange(0.05, 0.95, 0.01):
+        y_pred = (y_score >= t).astype(int)
+        score = float(f1_score(y_true, y_pred, zero_division=0))
+        if score > best_f1:
+            best_f1 = score
+            best_thresh = float(t)
+    return round(best_thresh, 4)
+
+
 def compute_metrics(y_true: np.ndarray, y_score: np.ndarray, threshold: float = 0.5) -> Dict[str, float]:
     y_pred = (y_score >= threshold).astype(int)
     metrics = {
+        "accuracy": float(accuracy_score(y_true, y_pred)),
         "f1": float(f1_score(y_true, y_pred, zero_division=0)),
         "recall": float(recall_score(y_true, y_pred, zero_division=0)),
         "precision": float(precision_score(y_true, y_pred, zero_division=0)),

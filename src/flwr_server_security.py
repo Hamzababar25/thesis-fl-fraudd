@@ -19,6 +19,7 @@ from common import (
     FraudMLP,
     build_dataloader,
     compute_metrics,
+    find_best_threshold,
     save_confusion_matrix,
     save_json,
     save_pr_curve,
@@ -156,6 +157,8 @@ def run_security_fl(
     attack_strength: float = 0.0,
     attack_mode: str = "sign_flip",
     malicious_clients: str = "",
+    x_val: np.ndarray = None,
+    y_val: np.ndarray = None,
 ):
     input_dim = x_train.shape[1]
     client_local = make_client_datasets(
@@ -228,8 +231,18 @@ def run_security_fl(
         ray_init_args={"include_dashboard": False},
     )
 
-    final_loss, final_metrics_no_loss, y_score = evaluate_global(global_model, x_test, y_test, batch_size=128)
-    y_pred = (y_score >= 0.5).astype(int)
+    # Find best threshold on validation set, then evaluate test set with it
+    if x_val is not None and y_val is not None:
+        _, _, y_score_val = evaluate_global(global_model, x_val, y_val, batch_size=128)
+        best_threshold = find_best_threshold(y_val, y_score_val)
+    else:
+        best_threshold = 0.5
+    print(f"[INFO] {run_label}: best threshold (val F1) = {best_threshold:.4f}")
+
+    final_loss, _, y_score = evaluate_global(global_model, x_test, y_test, batch_size=128)
+    final_metrics_no_loss = compute_metrics(y_test, y_score, threshold=best_threshold)
+    final_metrics_no_loss["threshold"] = best_threshold
+    y_pred = (y_score >= best_threshold).astype(int)
     final_metrics = {"loss": final_loss, **final_metrics_no_loss}
 
     metrics_dir = output_dir / "metrics"
@@ -317,7 +330,7 @@ def main():
     )
     parser.add_argument("--attack_enabled", action="store_true")
     parser.add_argument("--attack_strength", type=float, default=5.0)
-    parser.add_argument("--attack_mode", type=str, default="sign_flip", choices=["sign_flip", "scale"])
+    parser.add_argument("--attack_mode", type=str, default="sign_flip", choices=["sign_flip", "scale", "label_flip"])
     parser.add_argument(
         "--malicious_clients",
         type=str,
@@ -328,6 +341,11 @@ def main():
         "--evaluate_attack_scenarios",
         action="store_true",
         help="Run normal FL, FL under attack, and FL with defense; then generate comparison metrics and plots.",
+    )
+    parser.add_argument(
+        "--evaluate_security_techniques",
+        action="store_true",
+        help="Run baseline, DP-only, clipping-only, and Multi-Krum-only technique comparison.",
     )
     args = parser.parse_args()
 
@@ -342,6 +360,9 @@ def main():
     metrics_dir = out / "metrics"
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
+    x_val = np.load(processed / "val_X_dense.npy")
+    y_val = np.load(processed / "val_y.npy")
+
     run_records = []
     if args.evaluate_attack_scenarios:
         run_plan = [
@@ -349,22 +370,84 @@ def main():
                 "method": "fedavg",
                 "label": "normal_fl",
                 "attack_enabled": False,
+                "attack_mode": "sign_flip",
                 "clip_threshold": 0.0,
                 "noise_multiplier": 0.0,
             },
             {
                 "method": "fedavg",
-                "label": "fl_under_attack",
+                "label": "sign_flip_no_defense",
                 "attack_enabled": True,
+                "attack_mode": "sign_flip",
                 "clip_threshold": 0.0,
                 "noise_multiplier": 0.0,
             },
             {
                 "method": "multi_krum",
-                "label": "fl_with_defense",
+                "label": "sign_flip_defended",
                 "attack_enabled": True,
+                "attack_mode": "sign_flip",
                 "clip_threshold": args.clip_threshold,
                 "noise_multiplier": args.noise_multiplier,
+            },
+            {
+                "method": "fedavg",
+                "label": "scale_no_defense",
+                "attack_enabled": True,
+                "attack_mode": "scale",
+                "clip_threshold": 0.0,
+                "noise_multiplier": 0.0,
+            },
+            {
+                "method": "multi_krum",
+                "label": "scale_defended",
+                "attack_enabled": True,
+                "attack_mode": "scale",
+                "clip_threshold": args.clip_threshold,
+                "noise_multiplier": args.noise_multiplier,
+            },
+            {
+                "method": "fedavg",
+                "label": "label_flip_no_defense",
+                "attack_enabled": True,
+                "attack_mode": "label_flip",
+                "clip_threshold": 0.0,
+                "noise_multiplier": 0.0,
+            },
+            {
+                "method": "multi_krum",
+                "label": "label_flip_defended",
+                "attack_enabled": True,
+                "attack_mode": "label_flip",
+                "clip_threshold": args.clip_threshold,
+                "noise_multiplier": args.noise_multiplier,
+            },
+        ]
+    elif args.evaluate_security_techniques:
+        run_plan = [
+            {
+                "method": "fedavg",
+                "label": "baseline_fl",
+                "clip_threshold": 0.0,
+                "noise_multiplier": 0.0,
+            },
+            {
+                "method": "fedavg",
+                "label": "dp_only",
+                "clip_threshold": 0.0,
+                "noise_multiplier": args.noise_multiplier,
+            },
+            {
+                "method": "fedavg",
+                "label": "clipping_only",
+                "clip_threshold": args.clip_threshold,
+                "noise_multiplier": 0.0,
+            },
+            {
+                "method": "multi_krum",
+                "label": "multi_krum_only",
+                "clip_threshold": 0.0,
+                "noise_multiplier": 0.0,
             },
         ]
     elif args.compare_strategies:
@@ -372,14 +455,12 @@ def main():
             {
                 "method": "fedavg",
                 "label": "fedavg",
-                "attack_enabled": args.attack_enabled,
                 "clip_threshold": args.clip_threshold,
                 "noise_multiplier": args.noise_multiplier,
             },
             {
                 "method": "multi_krum",
                 "label": "multi_krum",
-                "attack_enabled": args.attack_enabled,
                 "clip_threshold": args.clip_threshold,
                 "noise_multiplier": args.noise_multiplier,
             },
@@ -389,7 +470,6 @@ def main():
             {
                 "method": args.aggregation_method,
                 "label": args.aggregation_method,
-                "attack_enabled": args.attack_enabled,
                 "clip_threshold": args.clip_threshold,
                 "noise_multiplier": args.noise_multiplier,
             }
@@ -412,16 +492,20 @@ def main():
             num_malicious=args.num_malicious,
             multi_krum_m=args.multi_krum_m,
             run_label=str(item["label"]),
-            attack_enabled=bool(item["attack_enabled"]),
+            attack_enabled=bool(item.get("attack_enabled", args.attack_enabled)),
             attack_strength=args.attack_strength,
-            attack_mode=args.attack_mode,
+            attack_mode=str(item.get("attack_mode", args.attack_mode)),
             malicious_clients=args.malicious_clients,
+            x_val=x_val,
+            y_val=y_val,
         )
         row = {
             "scenario": str(item["label"]),
             "fl_model": resolved_fl_model,
             "aggregation_method": str(item["method"]),
-            "attack_enabled": float(1.0 if bool(item["attack_enabled"]) else 0.0),
+            "attack_type": str(item.get("attack_mode", "none")),
+            "attack_enabled": float(1.0 if bool(item.get("attack_enabled", args.attack_enabled)) else 0.0),
+            "defense": "multi_krum+clip+dp" if str(item["method"]) == "multi_krum" else "none",
             "clip_threshold": float(item["clip_threshold"]),
             "noise_multiplier": float(item["noise_multiplier"]),
         }
@@ -440,6 +524,36 @@ def main():
             robustness_df=robustness_df,
             output_dir=out,
             prefix="fl_attack_evaluation",
+        )
+
+        # Combined round-wise table: all scenarios side by side
+        scenario_labels = [str(item["label"]) for item in run_plan]
+        round_dfs: List[pd.DataFrame] = []
+        for label in scenario_labels:
+            path = metrics_dir / f"fl_round_metrics_{label}.csv"
+            if path.exists():
+                df = pd.read_csv(path)
+                cols_keep = [c for c in ["round", "loss", "f1", "recall", "precision", "roc_auc", "pr_auc"] if c in df.columns]
+                df = df[cols_keep].rename(columns={c: f"{label}_{c}" for c in cols_keep if c != "round"})
+                round_dfs.append(df)
+        if round_dfs:
+            combined_rounds = round_dfs[0]
+            for df in round_dfs[1:]:
+                combined_rounds = combined_rounds.merge(df, on="round", how="outer")
+            combined_rounds.sort_values("round").to_csv(metrics_dir / "fl_all_scenarios_roundwise.csv", index=False)
+            print(f"[OK] Combined roundwise CSV saved ({len(combined_rounds)} rounds × {len(combined_rounds.columns)} cols)")
+    elif args.evaluate_security_techniques:
+        comparison_df = build_attack_comparison_rows(run_records)
+        comparison_df.to_csv(metrics_dir / "fl_security_technique_comparison.csv", index=False)
+        save_json(metrics_dir / "fl_security_technique_comparison.json", {"results": comparison_df.to_dict(orient="records")})
+
+        robustness_df = build_robustness_rows(out, comparison_df["scenario"].tolist())
+        robustness_df.to_csv(metrics_dir / "fl_security_technique_robustness.csv", index=False)
+        save_attack_comparison_plots(
+            metrics_df=comparison_df,
+            robustness_df=robustness_df,
+            output_dir=out,
+            prefix="fl_security_technique_evaluation",
         )
     elif len(run_records) > 1:
         pd.DataFrame(run_records).to_csv(metrics_dir / "fl_strategy_comparison.csv", index=False)

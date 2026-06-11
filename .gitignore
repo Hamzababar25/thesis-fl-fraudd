@@ -2,7 +2,13 @@
 __pycache__/
 *.pyc
 data/
-outputs/
+outputs/*
+!outputs/analysis
+outputs/analysis/*
+!outputs/analysis/*.csv
+!outputs/analysis/*.json
+!outputs/analysis/*.txt
+!outputs/analysis/*.html
 output/
 *.xlsx
 *.zip

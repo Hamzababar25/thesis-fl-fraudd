@@ -12,7 +12,12 @@ import torch
 from flwr.common import NDArrays, Scalar
 from torch import nn
 
-from attack_simulation import apply_poisoning_attack, is_malicious_client, parse_malicious_clients
+from attack_simulation import (
+    apply_label_flipping_to_data,
+    apply_poisoning_attack,
+    is_malicious_client,
+    parse_malicious_clients,
+)
 from common import FraudLogistic, FraudMLP, build_dataloader, compute_metrics, train_one_epoch
 
 
@@ -114,9 +119,17 @@ class FraudClient(fl.client.NumPyClient):
         attack_mode = str(config.get("attack_mode", "sign_flip"))
         malicious_clients = parse_malicious_clients(str(config.get("malicious_clients", "")))
 
-        loader = build_dataloader(self.data.x_train, self.data.y_train, batch_size=batch_size, shuffle=True)
-        neg = (self.data.y_train == 0).sum()
-        pos = (self.data.y_train == 1).sum()
+        is_malicious = attack_enabled and is_malicious_client(self.cid, malicious_clients)
+
+        # Data poisoning: flip labels BEFORE local training (label_flip attack)
+        if is_malicious and attack_mode == "label_flip":
+            y_train_use = apply_label_flipping_to_data(self.data.y_train, flip_ratio=1.0)
+        else:
+            y_train_use = self.data.y_train
+
+        loader = build_dataloader(self.data.x_train, y_train_use, batch_size=batch_size, shuffle=True)
+        neg = (y_train_use == 0).sum()
+        pos = (y_train_use == 1).sum()
         pos_weight = float(neg / max(pos, 1))
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight, device=DEVICE))
         optimizer = torch.optim.Adam(self.model.parameters(), lr=self.lr)
@@ -141,8 +154,8 @@ class FraudClient(fl.client.NumPyClient):
         val_metrics = compute_metrics(y_true, y_score, threshold=0.5)
 
         updated = get_weights(self.model)
-        is_malicious = attack_enabled and is_malicious_client(self.cid, malicious_clients)
-        if is_malicious:
+        # Model poisoning: manipulate updates AFTER training (sign_flip / scale only)
+        if is_malicious and attack_mode != "label_flip":
             updated = apply_poisoning_attack(
                 initial=initial_parameters,
                 updated=updated,

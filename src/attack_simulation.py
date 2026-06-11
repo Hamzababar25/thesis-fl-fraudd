@@ -21,6 +21,18 @@ def is_malicious_client(cid: str, malicious_clients: Set[str]) -> bool:
     return cid in malicious_clients
 
 
+def apply_label_flipping_to_data(y_train: np.ndarray, flip_ratio: float = 1.0) -> np.ndarray:
+    """Data poisoning: flip fraud labels (1→0) in training data before local training."""
+    y_poisoned = y_train.copy()
+    fraud_idx = np.where(y_train == 1)[0]
+    n_flip = int(len(fraud_idx) * flip_ratio)
+    if n_flip > 0:
+        rng = np.random.default_rng(42)
+        chosen = rng.choice(fraud_idx, size=n_flip, replace=False)
+        y_poisoned[chosen] = 0
+    return y_poisoned
+
+
 def apply_poisoning_attack(
     initial: NDArrays,
     updated: NDArrays,

@@ -19,7 +19,7 @@ from sklearn.metrics import (
 )
 from xgboost import XGBClassifier
 
-from common import save_confusion_matrix, save_json
+from common import find_best_threshold, save_confusion_matrix, save_json
 
 
 def metrics_from_scores(y_true: np.ndarray, y_score: np.ndarray, threshold: float = 0.5) -> Dict[str, float]:
@@ -78,6 +78,8 @@ def main():
 
     x_train = sparse.load_npz(processed / "train_X.npz")
     y_train = np.load(processed / "train_y.npy")
+    x_val = sparse.load_npz(processed / "val_X.npz")
+    y_val = np.load(processed / "val_y.npy")
     x_test = sparse.load_npz(processed / "test_X.npz")
     y_test = np.load(processed / "test_y.npy")
 
@@ -123,11 +125,16 @@ def main():
         model.fit(x_train, y_train)
         y_score = get_scores(model, x_test)
         pred_store[name] = y_score
-        m = metrics_from_scores(y_test, y_score, threshold=args.threshold)
+        # Find best threshold on validation set
+        y_score_val = get_scores(model, x_val)
+        best_thresh = find_best_threshold(y_val, y_score_val)
+        print(f"[INFO] {name}: best threshold = {best_thresh:.4f}")
+        m = metrics_from_scores(y_test, y_score, threshold=best_thresh)
+        m["threshold"] = best_thresh
         row = {"model": name}
         row.update(m)
         single_rows.append(row)
-        y_pred = (y_score >= args.threshold).astype(int)
+        y_pred = (y_score >= best_thresh).astype(int)
         save_confusion_matrix(y_test, y_pred, plots_dir / f"cm_single_{name}.png")
 
     single_df = pd.DataFrame(single_rows).sort_values("f1", ascending=False)
@@ -150,11 +157,18 @@ def main():
             continue
         ens_name = f"{a}+{b}_w{int(wa*100)}_{int(wb*100)}"
         y_score = wa * pred_store[a] + wb * pred_store[b]
-        m = metrics_from_scores(y_test, y_score, threshold=args.threshold)
+        # Val-set threshold for hybrid too
+        y_score_val_a = get_scores(models[a], x_val)
+        y_score_val_b = get_scores(models[b], x_val)
+        y_score_val_ens = wa * y_score_val_a + wb * y_score_val_b
+        best_thresh = find_best_threshold(y_val, y_score_val_ens)
+        print(f"[INFO] {ens_name}: best threshold = {best_thresh:.4f}")
+        m = metrics_from_scores(y_test, y_score, threshold=best_thresh)
+        m["threshold"] = best_thresh
         row = {"hybrid_model": ens_name}
         row.update(m)
         hybrid_rows.append(row)
-        y_pred = (y_score >= args.threshold).astype(int)
+        y_pred = (y_score >= best_thresh).astype(int)
         save_confusion_matrix(y_test, y_pred, plots_dir / f"cm_hybrid_{ens_name}.png")
 
     hybrid_df = pd.DataFrame(hybrid_rows).sort_values("f1", ascending=False)

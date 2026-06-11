@@ -1,0 +1,10 @@
+Table: FL Security Scenario Comparison
+======================================
+             scenario attack_type            defense     f1  recall  precision  roc_auc  pr_auc   loss  threshold
+            normal_fl   sign_flip               none 0.0961  0.9881     0.0505   0.5004  0.0506 0.6882       0.24
+ sign_flip_no_defense   sign_flip               none 0.0880  0.3510     0.0503   0.4953  0.0508 0.5345       0.05
+   sign_flip_defended   sign_flip multi_krum+clip+dp 0.0962  0.9934     0.0505   0.5023  0.0500 0.6901       0.16
+     scale_no_defense       scale               none 0.0961  0.9775     0.0505   0.4998  0.0506 0.6590       0.32
+       scale_defended       scale multi_krum+clip+dp 0.0964  0.9941     0.0506   0.5008  0.0501 0.6935       0.26
+label_flip_no_defense  label_flip               none 0.0963  0.9676     0.0507   0.5009  0.0506 0.5110       0.14
+  label_flip_defended  label_flip multi_krum+clip+dp 0.0965  0.9841     0.0507   0.5011  0.0494 0.5399       0.22
