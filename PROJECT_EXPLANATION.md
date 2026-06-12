@@ -7,6 +7,61 @@
 
 ---
 
+## PROBLEM STATEMENT
+
+Financial fraud is one of the most serious and growing threats in the global banking industry. Banks and financial institutions lose billions of dollars every year due to fraudulent transactions. To fight this, they use machine learning models that analyze transaction patterns and flag suspicious activity.
+
+However, a fundamental conflict exists between **data utility** and **data privacy**:
+
+- Fraud patterns are rare and diverse. A single bank may not have enough fraud examples in its own data to train a strong detection model.
+- Combining data from multiple banks would produce a much better model — but this is legally and ethically not possible. Customer transaction data is private, regulated under laws like GDPR and PSD2, and cannot be shared between competing financial institutions.
+- Banks that train models only on their own local data end up with weak, biased models that miss fraud patterns seen at other banks.
+
+This creates a critical gap: **banks need to collaborate to fight fraud effectively, but they cannot share their sensitive data to do so.**
+
+Federated Learning (FL) was proposed as a solution to this exact problem. In FL, multiple banks train a shared model by exchanging only model parameters (weights), never raw transaction data. However, FL introduces a new and serious vulnerability: **it assumes all participating banks are honest**. In reality, one or more banks could be:
+
+- Compromised by an external attacker (hacked system)
+- Internally malicious (deliberately trying to sabotage the shared model)
+- Behaving dishonestly to reduce fraud detection at competitors
+
+When a malicious participant sends manipulated model updates to the server, it can degrade the global fraud detection model for all banks — a threat known as a **Poisoning Attack**. Existing FL systems have no built-in protection against such attacks.
+
+**The core problem this thesis addresses:**
+> *How can multiple banks collaboratively train a fraud detection model using Federated Learning, while remaining secure against participants who deliberately try to corrupt the shared model through poisoning attacks?*
+
+---
+
+## OBJECTIVES
+
+This thesis has the following specific research objectives:
+
+**Objective 1 — Establish a Federated Learning Baseline for Fraud Detection**
+Design and implement a complete FL pipeline where 3 simulated banks collaboratively train a fraud detection model using the FedAvg aggregation algorithm. Evaluate the baseline performance (F1, Recall, Precision, ROC-AUC) over 20 training rounds on a real bank transaction dataset.
+
+**Objective 2 — Compare Centralized ML Models**
+Before deploying FL, compare three standard machine learning models (Logistic Regression, Random Forest, XGBoost) trained on centralized data to establish a performance reference point and select the most appropriate model for FL deployment.
+
+**Objective 3 — Simulate Realistic Poisoning Attacks**
+Implement three distinct attack scenarios that a malicious bank participant could carry out:
+- **Sign-Flip Attack** (model poisoning): Reverse and amplify model updates to mislead the global model
+- **Scale Attack** (model poisoning): Amplify updates to make one client's influence disproportionately large
+- **Label-Flip Attack** (data poisoning): Corrupt local training data by flipping fraud labels before training
+
+**Objective 4 — Implement a Layered Defense Mechanism**
+Design and deploy a multi-layer security framework combining:
+- Gradient clipping to limit update magnitudes
+- Differential Privacy (DP) noise injection to protect individual updates
+- Multi-Krum robust aggregation to detect and reject malicious client updates
+
+**Objective 5 — Evaluate Attack and Defense in a 7-Scenario Comparative Study**
+Run and compare 7 FL scenarios (baseline, each attack without defense, each attack with defense) and measure how much each attack degrades performance and how effectively the defense recovers it — in terms of Recall, F1, and round-wise convergence behavior.
+
+**Objective 6 — Analyze the Limits of Gradient-Level Defenses Against Data Poisoning**
+Specifically investigate Label-Flip (data poisoning) as a threat that operates at the data level rather than the model level, and examine whether gradient-level defenses (Multi-Krum + clipping) can adequately counter it — identifying this gap as a contribution and direction for future work.
+
+---
+
 ## PART 1 — What Is This Project? (Plain English)
 
 ### The Real-World Problem
@@ -47,9 +102,10 @@ This is called a **Poisoning Attack**.
 This thesis:
 1. Sets up a Federated Learning system with 3 banks
 2. Introduces attacks where one bank (Bank w3) behaves maliciously
-3. Tests 3 different types of attacks
-4. Implements defenses against these attacks
-5. Measures how much the attack hurts performance and how much the defense recovers it
+3. Tests 3 different types of attacks (Sign-Flip, Scale, Label-Flip)
+4. Implements a layered defense (Multi-Krum + Gradient Clipping + DP Noise)
+5. Measures how much each attack hurts performance and how much the defense recovers it
+6. Compares all 7 scenarios with detailed round-wise analysis
 
 ---
 
