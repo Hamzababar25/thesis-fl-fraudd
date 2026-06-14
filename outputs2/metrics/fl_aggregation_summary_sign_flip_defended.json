@@ -1,0 +1,175 @@
+{
+  "run_label": "sign_flip_defended",
+  "strategy_config": {
+    "fl_model": "logistic_regression",
+    "aggregation_method": "multi_krum",
+    "num_malicious": 1,
+    "multi_krum_m": 0,
+    "clip_threshold": 1.0,
+    "noise_multiplier": 0.01,
+    "attack_enabled": true,
+    "attack_strength": 5.0,
+    "attack_mode": "sign_flip",
+    "malicious_clients": "w3"
+  },
+  "selected_clients_last_round": {
+    "round": 20.0,
+    "num_clients": 3.0,
+    "w2_update_norm": 0.1056993553400536,
+    "w2_clipped_norm": 0.1056993553400536,
+    "w2_grad_norm_before": 0.1056993553400536,
+    "w2_grad_norm_after": 0.1056993553400536,
+    "w2_clip_threshold": 1.0,
+    "w2_noise_multiplier": 0.01,
+    "w2_noise_scale": 0.01,
+    "w2_is_malicious": 0.0,
+    "w2_attack_strength": 0.0,
+    "w1_update_norm": 0.1883345177393955,
+    "w1_clipped_norm": 0.1883345177393955,
+    "w1_grad_norm_before": 0.1883345177393955,
+    "w1_grad_norm_after": 0.1883345177393955,
+    "w1_clip_threshold": 1.0,
+    "w1_noise_multiplier": 0.01,
+    "w1_noise_scale": 0.01,
+    "w1_is_malicious": 0.0,
+    "w1_attack_strength": 0.0,
+    "w3_update_norm": 0.6636639702140524,
+    "w3_clipped_norm": 0.6636639702140524,
+    "w3_grad_norm_before": 0.6636639702140524,
+    "w3_grad_norm_after": 0.6636639702140524,
+    "w3_clip_threshold": 1.0,
+    "w3_noise_multiplier": 0.01,
+    "w3_noise_scale": 0.01,
+    "w3_is_malicious": 1.0,
+    "w3_attack_strength": 5.0,
+    "w2_agg_score": 0.07518372684717178,
+    "w2_selected": 1.0,
+    "w1_agg_score": 0.07518372684717178,
+    "w1_selected": 1.0,
+    "w3_agg_score": 0.4485757052898407,
+    "w3_selected": 0.0,
+    "rejected_clients": "w3"
+  },
+  "outlier_events": [
+    {
+      "round": 1,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 2,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 3,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 4,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 5,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 6,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 7,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 8,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 9,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 10,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 11,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 12,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 13,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 14,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 15,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 16,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 17,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 18,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 19,
+      "rejected_clients": [
+        "w3"
+      ]
+    },
+    {
+      "round": 20,
+      "rejected_clients": [
+        "w3"
+      ]
+    }
+  ]
+}

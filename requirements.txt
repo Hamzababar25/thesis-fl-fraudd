@@ -7,3 +7,4 @@ openpyxl
 joblib
 flwr[simulation]
 xgboost
+imbalanced-learn

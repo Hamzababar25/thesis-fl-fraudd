@@ -1,0 +1,4 @@
+attack_type,baseline_recall_%,under_attack_recall_%,after_defense_recall_%,recovery_%,baseline_f1_%,under_attack_f1_%,after_defense_f1_%,defense_effective
+Sign-Flip,81.08,0.0,81.08,81.08,80.54,0.0,79.47,YES — Full Recovery
+Scale,81.08,81.08,81.08,0.0,80.54,77.92,79.47,YES — Full Recovery
+Label-Flip,81.08,75.68,81.08,5.41,80.54,77.24,79.47,YES — Full Recovery

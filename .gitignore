@@ -20,3 +20,6 @@ output/
 .ipynb_checkpoints/
 outputs_old_20260531_015325/
 *.npy
+*.npz
+# outputs2: exclude large processed data files, keep everything else
+outputs2/processed/

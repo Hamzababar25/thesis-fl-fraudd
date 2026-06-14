@@ -1,0 +1,2 @@
+model,accuracy,f1,recall,precision,roc_auc,pr_auc,threshold,loss
+fl_sign_flip_no_defense,0.9851598707925658,0.0,0.0,0.0,0.08957138765101623,0.0009300036140110225,0.94,0.6674949096428753

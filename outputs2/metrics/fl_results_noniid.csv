@@ -1,0 +1,2 @@
+model,accuracy,f1,recall,precision,roc_auc,pr_auc,threshold,loss
+fl_fedavg_noniid,0.9982678713543374,0.0,0.0,0.0,0.8919503528570778,0.7211942211878828,0.5,0.01218227957545086

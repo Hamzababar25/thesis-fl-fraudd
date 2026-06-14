@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import flwr as fl
 import numpy as np
@@ -11,6 +12,10 @@ import pandas as pd
 import torch
 from flwr.common import NDArrays, Scalar, ndarrays_to_parameters, parameters_to_ndarrays
 from sklearn.metrics import log_loss
+
+
+class _EarlyStoppingSignal(Exception):
+    """Raised inside server_eval to interrupt FL simulation when patience is exhausted."""
 
 from aggregation import fedavg_aggregate, multi_krum_aggregate
 from attack_simulation import build_attack_comparison_rows, build_robustness_rows, save_attack_comparison_plots
@@ -26,7 +31,7 @@ from common import (
     save_roc_curve,
     to_dataframe_metrics,
 )
-from flwr_client import DEVICE, FraudClient, make_client_datasets, set_weights
+from flwr_client import DEVICE, FraudClient, get_weights, make_client_datasets, set_weights
 
 
 def resolve_fl_model(fl_model: str, output_dir: Path) -> str:
@@ -208,6 +213,8 @@ def run_security_fl(
         round_logs.append(row)
         return loss, metrics
 
+    initial_params = ndarrays_to_parameters(get_weights(global_model))
+
     strategy = SecurityRobustFedAvg(
         fraction_fit=1.0,
         fraction_evaluate=1.0,
@@ -219,6 +226,7 @@ def run_security_fl(
         aggregation_method=aggregation_method,
         num_malicious=num_malicious,
         multi_krum_m=multi_krum_m,
+        initial_parameters=initial_params,
     )
 
     run_config = fl.server.ServerConfig(num_rounds=rounds)

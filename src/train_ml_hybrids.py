@@ -6,6 +6,7 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
+from imblearn.over_sampling import SMOTE
 from scipy import sparse
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
@@ -67,6 +68,11 @@ def main():
         default=60000,
         help="Optional cap for faster training (0 = full train set).",
     )
+    parser.add_argument(
+        "--no_hybrid",
+        action="store_true",
+        help="Skip hybrid ensemble models; train only single models.",
+    )
     args = parser.parse_args()
 
     out = Path(args.output_dir)
@@ -84,6 +90,19 @@ def main():
     y_test = np.load(processed / "test_y.npy")
 
     x_train, y_train = maybe_subsample(x_train, y_train, n_max=args.max_train_samples, seed=42)
+
+    # Apply SMOTE to balance training data.
+    # For severely imbalanced datasets (fraud < 1%), cap SMOTE at 10% ratio
+    # instead of 1:1 to avoid creating millions of synthetic samples.
+    fraud_ratio = float((y_train == 1).mean())
+    n_normal = int((y_train == 0).sum())
+    n_fraud  = int((y_train == 1).sum())
+    print(f"[INFO] Before SMOTE: {n_normal} normal, {n_fraud} fraud ({fraud_ratio*100:.4f}%)")
+    smote_ratio = min(1.0, max(0.1, 10 * fraud_ratio))   # cap to 10× current ratio
+    sm = SMOTE(sampling_strategy=smote_ratio, random_state=42)
+    x_train, y_train = sm.fit_resample(x_train, y_train)
+    print(f"[INFO] After  SMOTE: {int((y_train==0).sum())} normal, {int((y_train==1).sum())} fraud")
+
     scale_pos_weight = class_weight_ratio(y_train)
 
     models = {
@@ -144,10 +163,24 @@ def main():
         {"threshold": args.threshold, "results": single_df.to_dict(orient="records")},
     )
 
-    print("[INFO] Building hybrid ensembles...")
+    best_single = single_df.iloc[0].to_dict()
 
+    if args.no_hybrid:
+        print("[INFO] Skipping hybrid ensembles (--no_hybrid flag set).")
+        summary = {
+            "best_single": best_single,
+            "best_hybrid": best_single,   # fallback: best single used as best overall
+            "threshold": args.threshold,
+            "train_samples_used": int(len(y_train)),
+        }
+        save_json(metrics_dir / "ml_comparison_summary.json", summary)
+        print("[OK] ML single models complete.")
+        print("\nSingle model results:")
+        print(single_df.to_string(index=False))
+        return
+
+    print("[INFO] Building hybrid ensembles...")
     hybrid_rows = []
-    # Requested weighted hybrids.
     weighted_defs = [
         ("xgboost", "logistic_regression", 0.7, 0.3),
         ("xgboost", "random_forest", 0.6, 0.4),
@@ -157,7 +190,6 @@ def main():
             continue
         ens_name = f"{a}+{b}_w{int(wa*100)}_{int(wb*100)}"
         y_score = wa * pred_store[a] + wb * pred_store[b]
-        # Val-set threshold for hybrid too
         y_score_val_a = get_scores(models[a], x_val)
         y_score_val_b = get_scores(models[b], x_val)
         y_score_val_ens = wa * y_score_val_a + wb * y_score_val_b
@@ -178,7 +210,6 @@ def main():
         {"threshold": args.threshold, "results": hybrid_df.to_dict(orient="records")},
     )
 
-    best_single = single_df.iloc[0].to_dict()
     best_hybrid = hybrid_df.iloc[0].to_dict()
     summary = {
         "best_single": best_single,

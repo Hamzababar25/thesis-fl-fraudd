@@ -1,0 +1,4 @@
+attack_type,baseline_recall_%,attack_recall_%,recall_drop_%,baseline_f1_%,attack_f1_%,f1_drop_%,baseline_loss,attack_loss,verdict
+Sign-Flip (model poisoning),81.08,0.0,81.08,80.54,0.0,80.5369,0.1014,0.6675,SEVERE
+Scale (model poisoning),81.08,81.08,0.0,80.54,77.92,2.6148,0.1014,0.0809,MILD
+Label-Flip (data poisoning),81.08,75.68,5.41,80.54,77.24,3.2955,0.1014,0.0854,MODERATE

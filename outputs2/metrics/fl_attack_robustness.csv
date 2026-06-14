@@ -1,0 +1,8 @@
+scenario,rounds,rounds_with_rejection,avg_rejected_clients
+normal_fl,20.0,0.0,0.0
+sign_flip_no_defense,20.0,0.0,0.0
+sign_flip_defended,20.0,20.0,1.0
+scale_no_defense,20.0,0.0,0.0
+scale_defended,20.0,20.0,1.0
+label_flip_no_defense,20.0,0.0,0.0
+label_flip_defended,20.0,20.0,1.0

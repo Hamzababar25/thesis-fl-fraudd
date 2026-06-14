@@ -1,0 +1,5 @@
+category,model,accuracy,precision,recall,f1,roc_auc,pr_auc,threshold
+centralized,logreg_balanced,0.999,0.6739,0.8378,0.747,0.9609,0.7473,0.94
+single_ml,xgboost,0.9995,0.9355,0.7838,0.8529,0.9627,0.8176,0.93
+single_ml,random_forest,0.9994,0.8788,0.7838,0.8286,0.9685,0.8259,0.7
+single_ml,logistic_regression,0.9991,0.6966,0.8378,0.7607,0.957,0.7548,0.94

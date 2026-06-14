@@ -1,0 +1,8 @@
+scenario,fl_model,aggregation_method,attack_type,attack_enabled,defense,clip_threshold,noise_multiplier,loss,accuracy,f1,recall,precision,roc_auc,pr_auc,threshold
+normal_fl,logistic_regression,fedavg,sign_flip,0.0,none,0.0,0.0,0.1014,0.9993,0.8054,0.8108,0.8,0.9362,0.737,0.94
+sign_flip_no_defense,logistic_regression,fedavg,sign_flip,1.0,none,0.0,0.0,0.6675,0.9852,0.0,0.0,0.0,0.0896,0.0009,0.94
+sign_flip_defended,logistic_regression,multi_krum,sign_flip,1.0,multi_krum+clip+dp,1.0,0.01,0.1063,0.9993,0.7947,0.8108,0.7792,0.9308,0.739,0.84
+scale_no_defense,logistic_regression,fedavg,scale,1.0,none,0.0,0.0,0.0809,0.9992,0.7792,0.8108,0.75,0.9544,0.7308,0.94
+scale_defended,logistic_regression,multi_krum,scale,1.0,multi_krum+clip+dp,1.0,0.01,0.1014,0.9993,0.7947,0.8108,0.7792,0.9307,0.7392,0.84
+label_flip_no_defense,logistic_regression,fedavg,label_flip,1.0,none,0.0,0.0,0.0854,0.9992,0.7724,0.7568,0.7887,0.94,0.7289,0.72
+label_flip_defended,logistic_regression,multi_krum,label_flip,1.0,multi_krum+clip+dp,1.0,0.01,0.1034,0.9993,0.7947,0.8108,0.7792,0.931,0.7391,0.85

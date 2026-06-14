@@ -1,0 +1,8 @@
+scenario_label,attack_type,defense_active,f1_score_%,recall_%,precision_%,roc_auc,loss,threshold
+"Normal FL (No Attack, No Defense)",sign_flip,NO,80.54,81.08,80.0,0.9362,0.1014,0.94
+Sign-Flip Attack — No Defense,sign_flip,NO,0.0,0.0,0.0,0.0896,0.6675,0.94
+Sign-Flip Attack + Multi-Krum Defense,sign_flip,YES — Multi-Krum + Clipping + DP,79.47,81.08,77.92,0.9308,0.1063,0.84
+Scale Attack — No Defense,scale,NO,77.92,81.08,75.0,0.9544,0.0809,0.94
+Scale Attack + Multi-Krum Defense,scale,YES — Multi-Krum + Clipping + DP,79.47,81.08,77.92,0.9307,0.1014,0.84
+Label-Flip Attack — No Defense,label_flip,NO,77.24,75.68,78.87,0.94,0.0854,0.72
+Label-Flip Attack + Multi-Krum Defense,label_flip,YES — Multi-Krum + Clipping + DP,79.47,81.08,77.92,0.931,0.1034,0.85

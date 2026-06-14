@@ -1,0 +1,17 @@
+Table: Round-wise F1 Score (every 5 rounds)
+============================================================
+ round  normal_fl_f1  sign_flip_no_defense_f1  sign_flip_defended_f1  scale_no_defense_f1  scale_defended_f1  label_flip_no_defense_f1  label_flip_defended_f1
+     0        0.0041                   0.0010                 0.0041               0.0048             0.0054                    0.0048                  0.0008
+     5        0.1356                   0.0004                 0.1765               0.1422             0.2049                    0.2716                  0.1658
+    10        0.2250                   0.0006                 0.2653               0.1780             0.2664                    0.6458                  0.2577
+    15        0.2520                   0.0006                 0.2710               0.2000             0.2745                    0.6263                  0.2733
+    20        0.3029                   0.0006                 0.3739               0.2456             0.3795                    0.7607                  0.3728
+
+Table: Round-wise Recall (every 5 rounds)
+============================================================
+ round  normal_fl_recall  sign_flip_no_defense_recall  sign_flip_defended_recall  scale_no_defense_recall  scale_defended_recall  label_flip_no_defense_recall  label_flip_defended_recall
+     0            0.5676                       0.0946                     0.8108                   0.8108                 0.9324                        0.8378                      0.0946
+     5            0.8514                       0.0405                     0.8514                   0.8514                 0.8514                        0.8514                      0.8514
+    10            0.8514                       0.0541                     0.8514                   0.8514                 0.8514                        0.8378                      0.8514
+    15            0.8514                       0.0541                     0.8514                   0.8514                 0.8514                        0.8378                      0.8514
+    20            0.8514                       0.0541                     0.8514                   0.8514                 0.8514                        0.8378                      0.8514

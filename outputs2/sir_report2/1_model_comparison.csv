@@ -1,0 +1,5 @@
+rank,model_name,category,f1_score_%,recall_%,precision_%,roc_auc,threshold_used,can_use_in_FL
+1,Xgboost,Single ML Model,85.29,78.38,93.55,0.9627,0.93,NO (tree-based)
+2,Random Forest,Single ML Model,82.86,78.38,87.88,0.9685,0.7,NO (tree-based)
+3,Logistic Regression,Single ML Model,76.07,83.78,69.66,0.957,0.94,YES
+4,Logistic Regression (Centralized),Centralized Baseline,74.7,83.78,67.39,0.9609,0.94,YES

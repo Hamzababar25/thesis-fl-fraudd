@@ -5,6 +5,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from imblearn.over_sampling import SMOTE
 from scipy import sparse
 from sklearn.linear_model import LogisticRegression
 
@@ -39,6 +40,12 @@ def main():
     x_test = sparse.load_npz(processed / "test_X.npz")
     y_test = np.load(processed / "test_y.npy")
 
+    # Apply SMOTE to balance training data
+    print(f"[INFO] Before SMOTE: {int((y_train==0).sum())} normal, {int((y_train==1).sum())} fraud")
+    sm = SMOTE(random_state=42)
+    x_train_res, y_train_res = sm.fit_resample(x_train, y_train)
+    print(f"[INFO] After  SMOTE: {int((y_train_res==0).sum())} normal, {int((y_train_res==1).sum())} fraud")
+
     clf = LogisticRegression(
         max_iter=400,
         solver="saga",
@@ -46,7 +53,7 @@ def main():
         n_jobs=-1,
         random_state=42,
     )
-    clf.fit(x_train, y_train)
+    clf.fit(x_train_res, y_train_res)
 
     # Find best threshold on validation set (avoids data leakage)
     y_score_val = clf.predict_proba(x_val)[:, 1]

@@ -13,16 +13,19 @@ from flwr.common import NDArrays, Scalar
 from sklearn.metrics import log_loss
 
 from common import (
+    FraudLogistic,
     FraudMLP,
     build_dataloader,
     compute_metrics,
+    find_best_threshold,
     save_confusion_matrix,
     save_json,
     save_pr_curve,
     save_roc_curve,
     to_dataframe_metrics,
 )
-from flwr_client import DEVICE, FraudClient, make_client_datasets, set_weights
+from flwr.common import ndarrays_to_parameters
+from flwr_client import DEVICE, FraudClient, get_weights, make_client_datasets, set_weights
 
 
 def evaluate_global(
@@ -61,6 +64,8 @@ def run_federated(
     partition_mode: str = "iid",
     rounds: int = 20,
     lr: float = 1e-3,
+    x_val: np.ndarray = None,
+    y_val: np.ndarray = None,
 ):
     input_dim = x_train.shape[1]
     client_local = make_client_datasets(
@@ -77,7 +82,8 @@ def run_federated(
         return FraudClient(cid=mapped, data=client_local[mapped], input_dim=input_dim, lr=lr)
 
     round_logs: List[Dict[str, float]] = []
-    global_model = FraudMLP(input_dim=input_dim).to(DEVICE)
+    # Use FraudLogistic to match the default model in FraudClient
+    global_model = FraudLogistic(input_dim=input_dim).to(DEVICE)
 
     def server_eval(server_round: int, parameters: NDArrays, config: Dict[str, Scalar]):
         set_weights(global_model, parameters)
@@ -87,6 +93,9 @@ def run_federated(
         round_logs.append(row)
         return loss, metrics
 
+    # Provide initial_parameters from server model so server and clients stay in sync
+    initial_params = ndarrays_to_parameters(get_weights(global_model))
+
     strategy = fl.server.strategy.FedAvg(
         fraction_fit=1.0,
         fraction_evaluate=1.0,
@@ -95,6 +104,7 @@ def run_federated(
         min_available_clients=3,
         on_fit_config_fn=fit_config,
         evaluate_fn=server_eval,
+        initial_parameters=initial_params,
     )
 
     run_config = fl.server.ServerConfig(num_rounds=rounds)
@@ -108,16 +118,19 @@ def run_federated(
         ray_init_args={"include_dashboard": False},
     )
 
-    # Final global test evaluation after training.
-    if round_logs:
-        final_metrics = {k: v for k, v in round_logs[-1].items() if k != "round"}
+    # Find best threshold on validation set (avoid data leakage)
+    if x_val is not None and y_val is not None:
+        _, _, y_score_val = evaluate_global(global_model, x_val, y_val, batch_size=128)
+        best_threshold = find_best_threshold(y_val, y_score_val)
     else:
-        loss, metrics, _ = evaluate_global(global_model, x_test, y_test, batch_size=128)
-        final_metrics = {"loss": loss, **metrics}
+        best_threshold = 0.5
+    print(f"[INFO] Best threshold (val F1): {best_threshold:.4f}")
 
-    # Re-evaluate once to collect prediction scores for plots.
-    final_loss, final_metrics_no_loss, y_score = evaluate_global(global_model, x_test, y_test, batch_size=128)
-    y_pred = (y_score >= 0.5).astype(int)
+    # Final evaluation on test set with best threshold
+    final_loss, _, y_score = evaluate_global(global_model, x_test, y_test, batch_size=128)
+    final_metrics_no_loss = compute_metrics(y_test, y_score, threshold=best_threshold)
+    final_metrics_no_loss["threshold"] = best_threshold
+    y_pred = (y_score >= best_threshold).astype(int)
     final_metrics = {"loss": final_loss, **final_metrics_no_loss}
 
     metrics_dir = output_dir / "metrics"
@@ -151,8 +164,10 @@ def main():
     processed = out / "processed"
     x_train = np.load(processed / "train_X_dense.npy")
     y_train = np.load(processed / "train_y.npy")
-    x_test = np.load(processed / "test_X_dense.npy")
-    y_test = np.load(processed / "test_y.npy")
+    x_val   = np.load(processed / "val_X_dense.npy")
+    y_val   = np.load(processed / "val_y.npy")
+    x_test  = np.load(processed / "test_X_dense.npy")
+    y_test  = np.load(processed / "test_y.npy")
 
     run_federated(
         x_train=x_train,
@@ -160,6 +175,8 @@ def main():
         x_test=x_test,
         y_test=y_test,
         output_dir=out,
+        x_val=x_val,
+        y_val=y_val,
         partition_mode=args.partition_mode,
         rounds=args.rounds,
         lr=args.lr,
